@@ -127,3 +127,11 @@ struct SnowflakeExecutorSQLJSON<'a> {
     role: Option<String>,
     bindings: Option<HashMap<&'a str, &'a str>>,
 }
+
+// Features
+#[cfg(feature = "derive")]
+#[doc(hidden)]
+pub use snowflake_deserializer::*;
+#[cfg(feature = "derive")]
+#[doc(hidden)]
+pub use snowflake_connector_derive::*;
