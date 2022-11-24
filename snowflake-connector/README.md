@@ -27,9 +27,9 @@ Below example is not tested, but you get the gist:
 use snowflake_connector::*;
 
 fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, anyhow::Error> {
-    snowflake_connector()?
+    SnowflakeConnector::try_new("COMPANY.ACCOUNT", "ACCOUNT", "USER@EXAMPLE.COM")?
         .execute("DB", "WH")
-        .sql("SELECT * FROM TEST_TABLE LIMIT 10").await
+        .sql("SELECT * FROM TEST_TABLE LIMIT 10")
         .run::<Test>().await
 }
 

@@ -46,7 +46,7 @@ pub struct SnowflakeExecutor<'a, D: ToString, W: ToString> {
 }
 
 impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
-    pub async fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
+    pub fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
         SnowflakeSQL {
             host: self.host,
             token: self.token,
