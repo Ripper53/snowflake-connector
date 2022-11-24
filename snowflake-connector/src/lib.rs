@@ -46,10 +46,14 @@ pub struct SnowflakeExecutor<'a, D: ToString, W: ToString> {
 }
 
 impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
-    pub fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
-        SnowflakeSQL {
+    pub fn sql(self, statement: &'a str) -> Result<SnowflakeSQL<'a>, anyhow::Error> {
+        let headers = self.get_headers()?;
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()?;
+        Ok(SnowflakeSQL {
+            client,
             host: self.host,
-            token: self.token,
             statement: SnowflakeExecutorSQLJSON {
                 statement,
                 timeout: None,
@@ -59,32 +63,37 @@ impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
                 bindings: None,
             },
             uuid: uuid::Uuid::new_v4(),
-        }
+        })
+    }
+    fn get_headers(&self) -> Result<HeaderMap, anyhow::Error> {
+        let mut headers = HeaderMap::with_capacity(5);
+        headers.append(CONTENT_TYPE, "application/json".parse()?);
+        headers.append(AUTHORIZATION, format!("Bearer {}", self.token).parse()?);
+        headers.append("X-Snowflake-Authorization-Token-Type", "KEYPAIR_JWT".parse()?);
+        headers.append(ACCEPT, "application/json".parse()?);
+        headers.append(USER_AGENT, concat!(env!("CARGO_PKG_NAME"), '/', env!("CARGO_PKG_VERSION")).parse()?);
+        Ok(headers)
     }
 }
 
 pub struct SnowflakeSQL<'a> {
+    client: reqwest::Client,
     host: &'a str,
-    token: &'a str,
     statement: SnowflakeExecutorSQLJSON<'a>,
     uuid: uuid::Uuid,
 }
 
 impl<'a> SnowflakeSQL<'a> {
     pub async fn text(self) -> Result<String, anyhow::Error> {
-        let headers = self.get_headers()?;
-        let client = reqwest::Client::new();
-        Ok(client.post(self.get_url())
-            .headers(headers)
+        Ok(self.client
+            .post(self.get_url())
             .json(&self.statement)
             .send().await?
             .text().await?)
     }
     pub async fn run<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>, anyhow::Error> {
-        let headers = self.get_headers()?;
-        let client = reqwest::Client::new();
-        client.post(self.get_url())
-            .headers(headers)
+        self.client
+            .post(self.get_url())
             .json(&self.statement)
             .send().await?
             .json::<SnowflakeSQLResponse>().await?
@@ -106,15 +115,6 @@ impl<'a> SnowflakeSQL<'a> {
     fn get_url(&self) -> String {
         // TODO: make another return type that allows retrying by calling same statement again with retry flag!
         format!("{}statements?nullable=false&requestId={}", self.host, self.uuid)
-    }
-    fn get_headers(&self) -> Result<HeaderMap, anyhow::Error> {
-        let mut headers = HeaderMap::with_capacity(5);
-        headers.append(CONTENT_TYPE, "application/json".parse()?);
-        headers.append(AUTHORIZATION, format!("Bearer {}", self.token).parse()?);
-        headers.append("X-Snowflake-Authorization-Token-Type", "KEYPAIR_JWT".parse()?);
-        headers.append(ACCEPT, "application/json".parse()?);
-        headers.append(USER_AGENT, concat!(env!("CARGO_PKG_NAME"), '/', env!("CARGO_PKG_VERSION")).parse()?);
-        Ok(headers)
     }
 }
 

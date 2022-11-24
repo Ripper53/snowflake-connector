@@ -1,5 +1,5 @@
 # Snowflake Connector
-Under development.
+**Under heavy development.** Might be wise to point to git instead of crate.io for now.
 
 # Usage
 Add following line to Cargo.toml:
