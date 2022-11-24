@@ -7,6 +7,9 @@ keywords = ["snowflake", "data-science"]
 categories = ["database"]
 exclude = ["/environment_variables"]
 
+[workspace]
+members = ["snowflake_connector_macros", "snowflake_connector_macros/snowflake_connector_macros_derive"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
