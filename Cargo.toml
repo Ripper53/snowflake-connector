@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "snowflake-connector",
-    "snowflake_connector_macros",
-    "snowflake_connector_macros/snowflake_connector_macros_derive",
+    "snowflake-deserializer",
+    "snowflake_connector_derive",
 ]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
 use serde::Serialize;
-use snowflake_connector_macros::*;
+use snowflake_deserializer::*;
 
 mod jwt;
 

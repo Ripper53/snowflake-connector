@@ -1,0 +1,19 @@
+[package]
+name = "snowflake_connector_derive"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Connect to Snowflake, used with snowflake-deserializer crate"
+repository = "https://github.com/Ripper53/snowflake-connector"
+keywords = ["snowflake", "data-science"]
+categories = ["database"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "1.0"
+quote = "1.0"
+snowflake-deserializer = { path = "../snowflake-deserializer" }
