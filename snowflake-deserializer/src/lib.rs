@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use serde::Deserialize;
 
+pub mod bindings;
+
 pub trait SnowflakeDeserialize {
     fn snowflake_deserialize(response: SnowflakeSQLResponse) -> Result<SnowflakeSQLResult<Self>, anyhow::Error>
         where Self: Sized;
@@ -25,7 +27,7 @@ impl SnowflakeSQLResponse {
     }
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
     pub num_rows: usize,
@@ -33,7 +35,7 @@ pub struct MetaData {
     pub row_type: Vec<RowType>,
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RowType {
     pub name: String,

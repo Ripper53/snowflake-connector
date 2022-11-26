@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
 use serde::Serialize;
-use snowflake_deserializer::*;
+use snowflake_deserializer::{*, bindings::*};
 
 mod jwt;
 
@@ -63,6 +63,7 @@ impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
                 bindings: None,
             },
             uuid: uuid::Uuid::new_v4(),
+            binding_counter: 0,
         })
     }
     fn get_headers(&self) -> Result<HeaderMap, anyhow::Error> {
@@ -81,6 +82,7 @@ pub struct SnowflakeSQL<'a> {
     host: &'a str,
     statement: SnowflakeExecutorSQLJSON<'a>,
     uuid: uuid::Uuid,
+    binding_counter: usize,
 }
 
 impl<'a> SnowflakeSQL<'a> {
@@ -107,9 +109,19 @@ impl<'a> SnowflakeSQL<'a> {
         self.statement.role = Some(role.to_string());
         self
     }
-    pub fn add_binding(mut self) -> SnowflakeSQL<'a> {
-        // TODO
-        todo!();
+    pub fn add_binding<T: Into<BindingValue>>(mut self, value: T) -> SnowflakeSQL<'a> {
+        let value: BindingValue = value.into();
+        let binding = Binding {
+            value_type: value.to_type().to_string(),
+            value: value.to_string(),
+        };
+        self.binding_counter += 1;
+        let index = self.binding_counter.to_string();
+        if let Some(bindings) = &mut self.statement.bindings {
+            bindings.insert(index, binding);
+        } else {
+            self.statement.bindings = Some(HashMap::from([(index, binding)]));
+        }
         self
     }
     fn get_url(&self) -> String {
@@ -119,18 +131,41 @@ impl<'a> SnowflakeSQL<'a> {
 }
 
 #[derive(Serialize)]
-struct SnowflakeExecutorSQLJSON<'a> {
+pub struct SnowflakeExecutorSQLJSON<'a> {
     statement: &'a str,
     timeout: Option<u32>,
     database: String,
     warehouse: String,
     role: Option<String>,
-    bindings: Option<HashMap<&'a str, &'a str>>,
+    bindings: Option<HashMap<String, Binding>>,
+}
+
+#[derive(Serialize)]
+pub struct Binding {
+    #[serde(rename = "type")]
+    value_type: String,
+    value: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sql() -> Result<(), anyhow::Error> {
+        let sql = SnowflakeConnector::try_new("HOST".into(), "ACCOUNT".into(), "USER".into())?;
+        let sql = sql.execute("DB", "WH")
+            .sql("SELECT * FROM TEST_TABLE WHERE id = ? AND name = ?")?
+            .add_binding(27);
+        assert_eq!(sql.binding_counter, 1);
+        let sql = sql.add_binding("JoMama");
+        assert_eq!(sql.binding_counter, 2);
+        Ok(())
+    }
 }
 
 // Features
 #[cfg(feature = "derive")]
-#[doc(hidden)]
 pub use snowflake_deserializer::*;
 #[cfg(feature = "derive")]
 #[doc(hidden)]
