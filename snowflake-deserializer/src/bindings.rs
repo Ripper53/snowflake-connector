@@ -38,9 +38,9 @@ impl ToString for BindingType {
     }
 }
 
-impl BindingValue {
-    pub const fn to_type(&self) -> BindingType {
-        match self {
+impl From<BindingValue> for BindingType {
+    fn from(value: BindingValue) -> Self {
+        match value {
             BindingValue::Bool(_) => BindingType::Bool,
             BindingValue::Byte(_) |
             BindingValue::SmallInt(_) |

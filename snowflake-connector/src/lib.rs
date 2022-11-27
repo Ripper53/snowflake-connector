@@ -111,9 +111,11 @@ impl<'a> SnowflakeSQL<'a> {
     }
     pub fn add_binding<T: Into<BindingValue>>(mut self, value: T) -> SnowflakeSQL<'a> {
         let value: BindingValue = value.into();
+        let value_str = value.to_string();
+        let value_type: BindingType = value.into();
         let binding = Binding {
-            value_type: value.to_type().to_string(),
-            value: value.to_string(),
+            value_type: value_type.to_string(),
+            value: value_str,
         };
         self.binding_counter += 1;
         let index = self.binding_counter.to_string();
