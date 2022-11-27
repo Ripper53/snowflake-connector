@@ -19,6 +19,7 @@ pub enum BindingValue {
     String(String),
 }
 
+#[derive(Clone, Debug)]
 pub enum BindingType {
     Bool,
     Fixed,
@@ -55,7 +56,7 @@ impl BindingValue {
                 => BindingType::Real,
             BindingValue::Char(_) |
             BindingValue::String(_)
-                =>BindingType::Text,
+                => BindingType::Text,
         }
     }
 }
