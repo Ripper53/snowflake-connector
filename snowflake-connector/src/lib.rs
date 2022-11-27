@@ -158,7 +158,7 @@ mod tests {
         let sql = SnowflakeConnector::try_new("HOST".into(), "ACCOUNT".into(), "USER".into())?;
         let sql = sql.execute("DB", "WH")
             .sql("SELECT * FROM TEST_TABLE WHERE id = ? AND name = ?")?
-            .add_binding(27);
+            .add_binding(69);
         assert_eq!(sql.binding_counter, 1);
         let sql = sql.add_binding("JoMama");
         assert_eq!(sql.binding_counter, 2);
