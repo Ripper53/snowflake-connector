@@ -5,7 +5,7 @@
 Add following line to Cargo.toml:
 
 ```toml
-snowflake-connector = { version = "0.1.1", features = ["derive"] }
+snowflake-connector = { version = "^0.1", features = ["derive"] }
 ```
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
