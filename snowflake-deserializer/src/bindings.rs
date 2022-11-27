@@ -20,13 +20,19 @@ pub enum BindingValue {
 }
 
 pub enum BindingType {
+    Bool,
     Fixed,
+    Real,
+    Text,
 }
 
 impl ToString for BindingType {
     fn to_string(&self) -> String {
         match self {
+            BindingType::Bool => "BOOLEAN",
             BindingType::Fixed => "FIXED",
+            BindingType::Real => "REAL",
+            BindingType::Text => "TEXT",
         }.into()
     }
 }
@@ -34,19 +40,22 @@ impl ToString for BindingType {
 impl BindingValue {
     pub const fn to_type(&self) -> BindingType {
         match self {
-            BindingValue::Bool(_) => BindingType::Fixed,
-            BindingValue::Byte(_) => BindingType::Fixed,
-            BindingValue::SmallInt(_) => BindingType::Fixed,
-            BindingValue::Int(_) => BindingType::Fixed,
-            BindingValue::BigInt(_) => BindingType::Fixed,
-            BindingValue::UByte(_) => BindingType::Fixed,
-            BindingValue::SmallUInt(_) => BindingType::Fixed,
-            BindingValue::UInt(_) => BindingType::Fixed,
-            BindingValue::BigUInt(_) => BindingType::Fixed,
-            BindingValue::Float(_) => BindingType::Fixed,
-            BindingValue::Double(_) => BindingType::Fixed,
-            BindingValue::Char(_) => BindingType::Fixed,
-            BindingValue::String(_) => BindingType::Fixed,
+            BindingValue::Bool(_) => BindingType::Bool,
+            BindingValue::Byte(_) |
+            BindingValue::SmallInt(_) |
+            BindingValue::Int(_) |
+            BindingValue::BigInt(_) |
+            BindingValue::UByte(_) |
+            BindingValue::SmallUInt(_) |
+            BindingValue::UInt(_) |
+            BindingValue::BigUInt(_)
+                => BindingType::Fixed,
+            BindingValue::Float(_) |
+            BindingValue::Double(_)
+                => BindingType::Real,
+            BindingValue::Char(_) |
+            BindingValue::String(_)
+                =>BindingType::Text,
         }
     }
 }
