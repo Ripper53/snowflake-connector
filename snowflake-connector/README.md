@@ -1,5 +1,5 @@
 # Snowflake Connector
-**Under heavy development.** Might be wise to point to git instead of crate.io for now.
+**Under heavy development.** Might be wise to point to git instead of crates.io for now.
 
 # Usage
 Add following line to Cargo.toml:
@@ -27,9 +27,11 @@ Below example is not tested, but you get the gist:
 use snowflake_connector::*;
 
 fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, anyhow::Error> {
-    SnowflakeConnector::try_new("COMPANY.ACCOUNT", "ACCOUNT", "USER@EXAMPLE.COM")?
+    let connector = SnowflakeConnector::try_new("COMPANY.ACCOUNT", "ACCOUNT", "USER@EXAMPLE.COM")?;
+    connector
         .execute("DB", "WH")
-        .sql("SELECT * FROM TEST_TABLE LIMIT 10")
+        .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")?
+        .add_binding(420)
         .run::<Test>().await
 }
 
