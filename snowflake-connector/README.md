@@ -24,15 +24,15 @@ Point `environment_variables/snowflake_public_key_path.txt` to your public key: 
 ## How it Works
 Below example is not tested, but you get the gist:
 ```rust
-use snowflake_connector::*;
+use snowflake_connector::{*, errors::SnowflakeError};
 
-fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, anyhow::Error> {
+fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeError> {
     let connector = SnowflakeConnector::try_new("COMPANY.ACCOUNT", "ACCOUNT", "USER@EXAMPLE.COM")?;
     connector
         .execute("DB", "WH")
         .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")?
         .add_binding(420)
-        .run::<Test>().await
+        .select::<Test>().await
 }
 
 fn main() {
