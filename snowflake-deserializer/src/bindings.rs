@@ -1,4 +1,4 @@
-use chrono::{NaiveTime, NaiveDate};
+use chrono::NaiveDateTime;
 use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
@@ -22,8 +22,7 @@ pub enum BindingValue {
     Char(char),
     String(String),
 
-    Date(NaiveDate),
-    Time(NaiveTime),
+    DateTime(NaiveDateTime),
 }
 
 #[derive(Clone, Debug)]
@@ -69,8 +68,7 @@ impl From<BindingValue> for BindingType {
             BindingValue::Char(_) |
             BindingValue::String(_)
                 => BindingType::Text,
-            BindingValue::Date(_) => BindingType::Date,
-            BindingValue::Time(_) => BindingType::Time,
+            BindingValue::DateTime(_) => BindingType::Date,
         }
     }
 }
@@ -92,8 +90,7 @@ impl ToString for BindingValue {
             BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
-            BindingValue::Date(value) => value.to_string(),
-            BindingValue::Time(value) => value.to_string(),
+            BindingValue::DateTime(value) => value.timestamp_millis().to_string(),
         }
     }
 }
@@ -127,5 +124,4 @@ impl_from_binding_value!(f64, BindingValue::Double);
 impl_from_binding_value!(Decimal, BindingValue::Decimal);
 impl_from_binding_value!(char, BindingValue::Char);
 impl_from_binding_value!(String, BindingValue::String);
-impl_from_binding_value!(NaiveDate, BindingValue::Date);
-impl_from_binding_value!(NaiveTime, BindingValue::Time);
+impl_from_binding_value!(NaiveDateTime, BindingValue::DateTime);
