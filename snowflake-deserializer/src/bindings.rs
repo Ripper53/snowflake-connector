@@ -1,3 +1,6 @@
+use chrono::{NaiveTime, NaiveDate};
+use rust_decimal::Decimal;
+
 #[derive(Clone, Debug)]
 pub enum BindingValue {
     Bool(bool),
@@ -14,9 +17,13 @@ pub enum BindingValue {
 
     Float(f32),
     Double(f64),
+    Decimal(Decimal),
 
     Char(char),
     String(String),
+
+    Date(NaiveDate),
+    Time(NaiveTime),
 }
 
 #[derive(Clone, Debug)]
@@ -25,6 +32,8 @@ pub enum BindingType {
     Fixed,
     Real,
     Text,
+    Date,
+    Time,
 }
 
 impl ToString for BindingType {
@@ -34,6 +43,8 @@ impl ToString for BindingType {
             BindingType::Fixed => "FIXED",
             BindingType::Real => "REAL",
             BindingType::Text => "TEXT",
+            BindingType::Date => "DATE",
+            BindingType::Time => "TIME",
         }.into()
     }
 }
@@ -52,11 +63,14 @@ impl From<BindingValue> for BindingType {
             BindingValue::BigUInt(_)
                 => BindingType::Fixed,
             BindingValue::Float(_) |
-            BindingValue::Double(_)
+            BindingValue::Double(_) |
+            BindingValue::Decimal(_)
                 => BindingType::Real,
             BindingValue::Char(_) |
             BindingValue::String(_)
                 => BindingType::Text,
+            BindingValue::Date(_) => BindingType::Date,
+            BindingValue::Time(_) => BindingType::Time,
         }
     }
 }
@@ -75,8 +89,11 @@ impl ToString for BindingValue {
             BindingValue::BigUInt(value) => value.to_string(),
             BindingValue::Float(value) => value.to_string(),
             BindingValue::Double(value) => value.to_string(),
+            BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
+            BindingValue::Date(value) => value.to_string(),
+            BindingValue::Time(value) => value.to_string(),
         }
     }
 }
@@ -107,5 +124,8 @@ impl_from_binding_value!(u32, BindingValue::UInt);
 impl_from_binding_value!(u64, BindingValue::BigUInt);
 impl_from_binding_value!(f32, BindingValue::Float);
 impl_from_binding_value!(f64, BindingValue::Double);
+impl_from_binding_value!(Decimal, BindingValue::Decimal);
 impl_from_binding_value!(char, BindingValue::Char);
 impl_from_binding_value!(String, BindingValue::String);
+impl_from_binding_value!(NaiveDate, BindingValue::Date);
+impl_from_binding_value!(NaiveTime, BindingValue::Time);
