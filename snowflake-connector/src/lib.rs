@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use snowflake_deserializer::{*, bindings::*};
 use errors::SnowflakeError;
 
-pub mod insert;
+pub mod data_manipulation;
 pub mod errors;
 
 mod jwt;
@@ -111,7 +111,7 @@ impl<'a> SnowflakeSQL<'a> {
             .deserialize()
             .map_err(SnowflakeError::SqlResultParse)
     }
-    pub async fn run<T: DeserializeOwned>(self) -> Result<T, SnowflakeError> {
+    pub async fn manipulate<T: DeserializeOwned>(self) -> Result<T, SnowflakeError> {
         self.client
             .post(self.get_url())
             .json(&self.statement)
