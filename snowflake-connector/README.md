@@ -5,7 +5,7 @@
 Add following line to Cargo.toml:
 
 ```toml
-snowflake-connector = { version = "^0.1", features = ["derive"] }
+snowflake-connector = { version = "0.2", features = ["derive"] }
 ```
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
@@ -49,7 +49,7 @@ pub struct Test {
     pub id: u32,
     pub value1: bool,
     pub value2: String,
-    pub value3: SomeEnumValue
+    pub value3: SomeEnumValue,
 }
 
 // Enum must implement DeserializeFromStr!
