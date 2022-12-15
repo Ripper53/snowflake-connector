@@ -47,8 +47,8 @@ impl ToString for BindingType {
             BindingType::Fixed => "FIXED",
             BindingType::Real => "REAL",
             BindingType::Text => "TEXT",
-            BindingType::Date => "DATE",
             BindingType::DateTime => "TIMESTAMP_NTZ",
+            BindingType::Date => "DATE",
             BindingType::Time => "TIME",
         }.into()
     }
