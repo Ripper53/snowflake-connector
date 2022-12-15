@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::Serialize;
 use snowflake_deserializer::{*, bindings::*};
 use errors::SnowflakeError;
 
@@ -111,13 +112,14 @@ impl<'a> SnowflakeSQL<'a> {
             .deserialize()
             .map_err(SnowflakeError::SqlResultParse)
     }
-    pub async fn manipulate<T: DeserializeOwned>(self) -> Result<T, SnowflakeError> {
+    /// Use with `delete`, `insert`, `update` row(s).
+    pub async fn manipulate(self) -> Result<DataManipulationResult, SnowflakeError> {
         self.client
             .post(self.get_url())
             .json(&self.statement)
             .send().await
             .map_err(|e| SnowflakeError::SqlExecution(e.into()))?
-            .json::<T>().await
+            .json().await
             .map_err(|e| SnowflakeError::SqlExecution(e.into()))
     }
     pub fn with_timeout(mut self, timeout: u32) -> SnowflakeSQL<'a> {
