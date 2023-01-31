@@ -104,7 +104,7 @@ impl ToString for BindingValue {
             BindingValue::String(value) => value.to_string(),
             BindingValue::DateTime(value) => value.timestamp_nanos().to_string(),
             BindingValue::Date(value) => value.and_time(NaiveTime::default()).timestamp_millis().to_string(),
-            BindingValue::Time(value) => NaiveDate::default().and_time(*value).timestamp_nanos().to_string(),
+            BindingValue::Time(value) => (Decimal::new(NaiveDate::default().and_time(*value).timestamp_nanos(), 0) / rust_decimal_macros::dec!(60)).to_string(),
         }
     }
 }
