@@ -10,14 +10,14 @@ snowflake-connector = { version = "0.2", features = ["derive"] }
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
 
-You must have the text files `environment_variables/snowflake_private_key_path.txt` and `environment_variables/snowflake_public_key_path.txt`, where your application is executed, and these files must store the path to the keys.
+You must have the text files `environment_variables/local/snowflake_private_key_path.txt` and `environment_variables/local/snowflake_public_key_path.txt`, where your application is executed, and these files must store the path to the keys.
 
 ## Dev Setup
 Add your public and private key under `environment_variables/local` folder (you will have to create the `local` folder). Make sure your private key is named `rsa_key.p8` and your public key is `rsa_key.pub`.
 
-Point `environment_variables/snowflake_private_key_path.txt` to your private key by changing its contents to: `./environment_variables/local/rsa_key.p8`
+Point `environment_variables/local/snowflake_private_key_path.txt` to your private key by changing its contents to: `./environment_variables/local/rsa_key.p8`
 
-Point `environment_variables/snowflake_public_key_path.txt` to your public key: `./environment_variables/local/rsa_key.pub`
+Point `environment_variables/local/snowflake_public_key_path.txt` to your public key: `./environment_variables/local/rsa_key.pub`
 
 **Make sure to ignore the `environment_variables` directory. You do not want to commit your keys to a repository.**
 

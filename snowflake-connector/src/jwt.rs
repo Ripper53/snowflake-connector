@@ -22,7 +22,7 @@ pub fn create_token(account_identifier: &str, user: &str) -> Result<String, KeyP
 }
 
 fn get_private_key() -> Result<String, KeyPairError> {
-    let path = "./environment_variables/snowflake_private_key_path.txt";
+    let path = "./environment_variables/local/snowflake_private_key_path.txt";
     let private_key = std::fs::read_to_string(path)
         .map_err(|e| KeyPairError::PrivateKeyRead(e, path.into()))?;
     std::fs::read_to_string(&private_key)
@@ -30,7 +30,7 @@ fn get_private_key() -> Result<String, KeyPairError> {
 }
 
 fn get_public_key() -> Result<String, KeyPairError> {
-    let path = "./environment_variables/snowflake_public_key_path.txt";
+    let path = "./environment_variables/local/snowflake_public_key_path.txt";
     let public_key = std::fs::read_to_string(path)
         .map_err(|e| KeyPairError::PublicKeyRead(e, path.into()))?;
     std::fs::read_to_string(&public_key)
