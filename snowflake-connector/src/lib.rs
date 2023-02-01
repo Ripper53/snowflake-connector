@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
 use serde::Serialize;
@@ -17,13 +17,21 @@ pub struct SnowflakeConnector {
 }
 
 impl SnowflakeConnector {
-    pub fn try_new(
+    pub fn try_new<P: AsRef<Path>>(
+        public_key_path: P,
+        private_key_path: P,
         host: String,
         account_identifier: String,
         user: String,
     ) -> Result<Self, SnowflakeError> {
+        let token = jwt::create_token(
+            public_key_path,
+            private_key_path,
+            &account_identifier.to_ascii_uppercase(),
+            &user.to_ascii_uppercase(),
+        )?;
         Ok(SnowflakeConnector {
-            token: jwt::create_token(&account_identifier.to_ascii_uppercase(), &user.to_ascii_uppercase())?,
+            token,
             host: format!("https://{host}.snowflakecomputing.com/api/v2/"),
         })
     }
@@ -174,7 +182,13 @@ mod tests {
 
     #[test]
     fn sql() -> Result<(), anyhow::Error> {
-        let sql = SnowflakeConnector::try_new("HOST".into(), "ACCOUNT".into(), "USER".into())?;
+        let sql = SnowflakeConnector::try_new(
+            "./environment_variables/local/rsa_key.pub",
+            "./environment_variables/local/rsa_key.p8",
+            "HOST".into(),
+            "ACCOUNT".into(),
+            "USER".into(),
+        )?;
         let sql = sql.execute("DB", "WH")
             .sql("SELECT * FROM TEST_TABLE WHERE id = ? AND name = ?")?
             .add_binding(69);

@@ -1,8 +1,15 @@
+use std::path::Path;
+
 use jwt_simple::prelude::*;
 
-pub fn create_token(account_identifier: &str, user: &str) -> Result<String, KeyPairError> {
-    let private_key = get_private_key()?;
-    let public_key_fingerprint = get_public_key()?;
+pub fn create_token<P: AsRef<Path>>(
+    public_key_path: P,
+    private_key_path: P,
+    account_identifier: &str,
+    user: &str,
+) -> Result<String, KeyPairError> {
+    let private_key = get_private_key(private_key_path)?;
+    let public_key_fingerprint = get_public_key(public_key_path)?;
     let mut public_key_fingerprint = RS256PublicKey::from_pem(&public_key_fingerprint)
         .map_err(KeyPairError::FingerprintGeneration)?
         .sha256_thumbprint();
@@ -21,20 +28,26 @@ pub fn create_token(account_identifier: &str, user: &str) -> Result<String, KeyP
         .map_err(KeyPairError::KayPairGeneration)
 }
 
-fn get_private_key() -> Result<String, KeyPairError> {
-    let path = "./environment_variables/local/snowflake_private_key_path.txt";
-    let private_key = std::fs::read_to_string(path)
-        .map_err(|e| KeyPairError::PrivateKeyRead(e, path.into()))?;
-    std::fs::read_to_string(&private_key)
-        .map_err(|e| KeyPairError::PrivateKeyRead(e, private_key))
+fn get_private_key<P: AsRef<Path>>(path: P) -> Result<String, KeyPairError> {
+    std::fs::read_to_string(&path)
+        .map_err(|e| {
+            KeyPairError::PrivateKeyRead(e, if let Some(path) = path.as_ref().to_str() {
+                path
+            } else {
+                "N/A"
+            }.into())
+        })
 }
 
-fn get_public_key() -> Result<String, KeyPairError> {
-    let path = "./environment_variables/local/snowflake_public_key_path.txt";
-    let public_key = std::fs::read_to_string(path)
-        .map_err(|e| KeyPairError::PublicKeyRead(e, path.into()))?;
-    std::fs::read_to_string(&public_key)
-        .map_err(|e| KeyPairError::PublicKeyRead(e, public_key))
+fn get_public_key<P: AsRef<Path>>(path: P) -> Result<String, KeyPairError> {
+    std::fs::read_to_string(&path)
+        .map_err(|e| {
+            KeyPairError::PublicKeyRead(e, if let Some(path) = path.as_ref().to_str() {
+                path
+            } else {
+                "N/A"
+            }.into())
+        })
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -55,8 +68,14 @@ mod tests {
 
     #[test]
     fn verify_jwt() -> Result<(), anyhow::Error> {
-        let token = create_token("TEST_ACCOUNT", "TEST_USER")?;
-        let public_key = get_public_key()?;
+        let public_key_path = "./environment_variables/local/rsa_key.pub";
+        let token = create_token(
+            public_key_path,
+            "./environment_variables/local/rsa_key.p8",
+            "TEST_ACCOUNT",
+            "TEST_USER",
+        )?;
+        let public_key = get_public_key(public_key_path)?;
         let public_key = RS256PublicKey::from_pem(&public_key)?;
         let verified = public_key.verify_token::<JWTClaims<NoCustomClaims>>(&token, None);
         assert!(verified.is_ok());

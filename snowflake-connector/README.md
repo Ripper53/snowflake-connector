@@ -10,10 +10,10 @@ snowflake-connector = { version = "0.2", features = ["derive"] }
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
 
-You must have the text files `environment_variables/local/snowflake_private_key_path.txt` and `environment_variables/local/snowflake_public_key_path.txt`, where your application is executed, and these files must store the path to the keys.
+You must pass the paths to your private and public key.
 
 ## Dev Setup
-Add your public and private key under `environment_variables/local` folder (you will have to create the `local` folder). Make sure your private key is named `rsa_key.p8` and your public key is `rsa_key.pub`.
+Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`
 
 Point `environment_variables/local/snowflake_private_key_path.txt` to your private key by changing its contents to: `./environment_variables/local/rsa_key.p8`
 
@@ -27,7 +27,13 @@ Below example is not tested, but you get the gist:
 use snowflake_connector::{*, errors::SnowflakeError};
 
 fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeError> {
-    let connector = SnowflakeConnector::try_new("COMPANY.ACCOUNT", "ACCOUNT", "USER@EXAMPLE.COM")?;
+    let connector = SnowflakeConnector::try_new(
+        "PUBLIC/KEY/PATH",
+        "PRIVATE/KEY/PATH",
+        "COMPANY.ACCOUNT",
+        "ACCOUNT",
+        "USER@EXAMPLE.COM",
+    )?;
     connector
         .execute("DB", "WH")
         .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")?
