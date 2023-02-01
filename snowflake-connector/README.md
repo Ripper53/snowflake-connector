@@ -13,13 +13,9 @@ Right now, only [key pair authentication](https://docs.snowflake.com/en/user-gui
 You must pass the paths to your private and public key.
 
 ## Dev Setup
-Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`
+Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`.
 
-Point `environment_variables/local/snowflake_private_key_path.txt` to your private key by changing its contents to: `./environment_variables/local/rsa_key.p8`
-
-Point `environment_variables/local/snowflake_public_key_path.txt` to your public key: `./environment_variables/local/rsa_key.pub`
-
-**Make sure to ignore the `environment_variables` directory. You do not want to commit your keys to a repository.**
+**Make sure to ignore the keys. You do not want to commit your keys to a repository.**
 
 ## How it Works
 Below example is not tested, but you get the gist:
