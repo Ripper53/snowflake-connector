@@ -17,6 +17,7 @@ pub fn create_token<P: AsRef<Path>>(
     for _ in 0..padding {
         public_key_fingerprint.push('=');
     }
+    let public_key_fingerprint = public_key_fingerprint.replace('_',"/"); //Snowflake expects "/" and not "_"
     let qualified_username  = format!("{account_identifier}.{user}");
     let issuer = format!("{qualified_username}.SHA256:{public_key_fingerprint}");
     let claims = Claims::create(Duration::from_hours(1))
