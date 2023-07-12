@@ -1,9 +1,12 @@
-use std::{collections::HashMap, path::Path};
 use data_manipulation::DataManipulationResult;
-use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
-use serde::Serialize;
-use snowflake_deserializer::{*, bindings::*};
 use errors::SnowflakeError;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use serde::Serialize;
+use snowflake_deserializer::{bindings::*, *};
+use std::{collections::HashMap, path::Path};
+
+use anyhow::{bail, Result};
+pub use snowflake_deserializer;
 
 pub mod data_manipulation;
 pub mod errors;
@@ -17,16 +20,16 @@ pub struct SnowflakeConnector {
 }
 
 impl SnowflakeConnector {
-    pub fn try_new<P: AsRef<Path>>(
-        public_key_path: P,
-        private_key_path: P,
-        host: String,
-        account_identifier: String,
-        user: String,
+    pub fn try_new(
+        public_key_path: impl AsRef<Path>,
+        private_key_path: impl AsRef<Path>,
+        host: &str,
+        account_identifier: &str,
+        user: &str,
     ) -> Result<Self, SnowflakeError> {
         let token = jwt::create_token(
-            public_key_path,
-            private_key_path,
+            public_key_path.as_ref(),
+            private_key_path.as_ref(),
             &account_identifier.to_ascii_uppercase(),
             &user.to_ascii_uppercase(),
         )?;
@@ -36,32 +39,23 @@ impl SnowflakeConnector {
         })
     }
 
-    pub fn execute<D: ToString, W: ToString>(
-        &self,
-        database: D,
-        warehouse: W,
-    ) -> SnowflakeExecutor<D, W> {
+    pub fn execute(&self) -> SnowflakeExecutor {
         SnowflakeExecutor {
             token: &self.token,
             host: &self.host,
-            database,
-            warehouse,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct SnowflakeExecutor<'a, D: ToString, W: ToString> {
+pub struct SnowflakeExecutor<'a> {
     token: &'a str,
     host: &'a str,
-    database: D,
-    warehouse: W,
 }
 
-impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
-    pub fn sql(self, statement: &'a str) -> Result<SnowflakeSQL<'a>, SnowflakeError> {
-        let headers = self.get_headers()
-            .map_err(SnowflakeError::SqlClient)?;
+impl<'a> SnowflakeExecutor<'a> {
+    pub fn sql(self, statement: &'a str) -> Result<SnowflakeSQL<'a>> {
+        let headers = self.get_headers()?;
         let client = reqwest::Client::builder()
             .default_headers(headers)
             .build()
@@ -72,63 +66,97 @@ impl<'a, D: ToString, W: ToString> SnowflakeExecutor<'a, D, W> {
             statement: SnowflakeExecutorSQLJSON {
                 statement,
                 timeout: None,
-                database: self.database.to_string(),
-                warehouse: self.warehouse.to_string(),
                 role: None,
                 bindings: None,
             },
             uuid: uuid::Uuid::new_v4(),
         })
     }
-    fn get_headers(&self) -> Result<HeaderMap, anyhow::Error> {
+    fn get_headers(&self) -> Result<HeaderMap> {
+        let token = self.token;
+        println!("tokinator: {token:?}");
         let mut headers = HeaderMap::with_capacity(5);
-        headers.append(CONTENT_TYPE, "application/json".parse()?);
-        headers.append(AUTHORIZATION, format!("Bearer {}", self.token).parse()?);
-        headers.append("X-Snowflake-Authorization-Token-Type", "KEYPAIR_JWT".parse()?);
-        headers.append(ACCEPT, "application/json".parse()?);
-        headers.append(USER_AGENT, concat!(env!("CARGO_PKG_NAME"), '/', env!("CARGO_PKG_VERSION")).parse()?);
+        headers.append(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.append(AUTHORIZATION, format!("Bearer {}", token).parse()?);
+        headers.append(
+            "X-Snowflake-Authorization-Token-Type",
+            HeaderValue::from_static("KEYPAIR_JWT"),
+        );
+        headers.append(ACCEPT, HeaderValue::from_static("application/json"));
+        headers.append(
+            USER_AGENT,
+            HeaderValue::from_static(concat!(
+                env!("CARGO_PKG_NAME"),
+                '/',
+                env!("CARGO_PKG_VERSION")
+            )),
+        );
         Ok(headers)
     }
 }
 
 #[derive(Debug)]
 pub struct SnowflakeSQL<'a> {
-    client: reqwest::Client,
     host: &'a str,
+    client: reqwest::Client,
     statement: SnowflakeExecutorSQLJSON<'a>,
     uuid: uuid::Uuid,
 }
 
 impl<'a> SnowflakeSQL<'a> {
-    pub async fn text(self) -> Result<String, SnowflakeError> {
-        self.client
+    pub async fn text(self) -> Result<String> {
+        let res = self
+            .client
             .post(self.get_url())
             .json(&self.statement)
-            .send().await
-            .map_err(|e| SnowflakeError::SqlExecution(e.into()))?
-            .text().await
-            .map_err(|e| SnowflakeError::SqlResultParse(e.into()))
+            .send()
+            .await?
+            .text()
+            .await?;
+        Ok(res)
     }
-    pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>, SnowflakeError> {
-        self.client
+
+    pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>> {
+        let s = serde_json::to_string_pretty(&self.statement).expect("serializing shit");
+
+        println!("sending {s}");
+        let res = self
+            .client
             .post(self.get_url())
             .json(&self.statement)
-            .send().await
-            .map_err(|e| SnowflakeError::SqlExecution(e.into()))?
-            .json::<SnowflakeSQLResponse>().await
-            .map_err(|e| SnowflakeError::SqlResultParse(e.into()))?
-            .deserialize()
-            .map_err(SnowflakeError::SqlResultParse)
+            .send()
+            .await
+            .map_err(|e| SnowflakeError::SqlExecution(e.into()))?;
+
+        let status = res.status();
+        let bs = res.bytes().await?;
+
+        if !status.is_success() {
+            let body_as_text = String::from_utf8_lossy(&bs);
+            bail!("got non 2xx response: {status}. Body:\n{body_as_text}");
+        }
+
+        let result = match serde_json::from_slice::<SnowflakeSQLResponse>(&bs) {
+            Ok(deserialized) => deserialized,
+            Err(err) => {
+                let body_as_text = String::from_utf8_lossy(&bs);
+                bail!("Error parsing result as SnowflakeSqlResponse: {err}. Body:\n{body_as_text}")
+            }
+        };
+
+        result.deserialize()
     }
     /// Use with `delete`, `insert`, `update` row(s).
-    pub async fn manipulate(self) -> Result<DataManipulationResult, SnowflakeError> {
-        self.client
+    pub async fn manipulate(self) -> Result<DataManipulationResult> {
+        let res = self
+            .client
             .post(self.get_url())
             .json(&self.statement)
-            .send().await
-            .map_err(|e| SnowflakeError::SqlExecution(e.into()))?
-            .json().await
-            .map_err(|e| SnowflakeError::SqlExecution(e.into()))
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(res)
     }
     pub fn with_timeout(mut self, timeout: u32) -> SnowflakeSQL<'a> {
         self.statement.timeout = Some(timeout);
@@ -155,7 +183,10 @@ impl<'a> SnowflakeSQL<'a> {
     }
     fn get_url(&self) -> String {
         // TODO: make another return type that allows retrying by calling same statement again with retry flag!
-        format!("{}statements?nullable=false&requestId={}", self.host, self.uuid)
+        dbg!(format!(
+            "{}statements?nullable=false&requestId={}",
+            self.host, self.uuid
+        ))
     }
 }
 
@@ -163,8 +194,6 @@ impl<'a> SnowflakeSQL<'a> {
 pub struct SnowflakeExecutorSQLJSON<'a> {
     statement: &'a str,
     timeout: Option<u32>,
-    database: String,
-    warehouse: String,
     role: Option<String>,
     bindings: Option<HashMap<String, Binding>>,
 }
@@ -189,7 +218,8 @@ mod tests {
             "ACCOUNT".into(),
             "USER".into(),
         )?;
-        let sql = sql.execute("DB", "WH")
+        let sql = sql
+            .execute()
             .sql("SELECT * FROM TEST_TABLE WHERE id = ? AND name = ?")?
             .add_binding(69);
         if let Some(bindings) = &sql.statement.bindings {
@@ -209,7 +239,7 @@ mod tests {
 
 // Features
 #[cfg(feature = "derive")]
-pub use snowflake_deserializer::*;
-#[cfg(feature = "derive")]
 #[doc(hidden)]
 pub use snowflake_connector_derive::*;
+#[cfg(feature = "derive")]
+pub use snowflake_deserializer::*;
