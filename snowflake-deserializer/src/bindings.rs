@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, NaiveDate, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
@@ -29,8 +29,35 @@ pub enum BindingValue {
     Time(NaiveTime),
 }
 
-#[derive(Clone, Debug)]
-pub enum BindingType {
+impl BindingValue {
+    pub fn kind(&self) -> BindingKind {
+        match self {
+            BindingValue::Bool(_) => BindingKind::Bool,
+            BindingValue::Byte(_)
+            | BindingValue::SmallInt(_)
+            | BindingValue::Int(_)
+            | BindingValue::BigInt(_)
+            | BindingValue::ISize(_)
+            | BindingValue::UByte(_)
+            | BindingValue::SmallUInt(_)
+            | BindingValue::UInt(_)
+            | BindingValue::BigUInt(_)
+            | BindingValue::USize(_) => BindingKind::Fixed,
+
+            BindingValue::Float(_) | BindingValue::Double(_) | BindingValue::Decimal(_) => {
+                BindingKind::Real
+            }
+            BindingValue::Char(_) | BindingValue::String(_) => BindingKind::Text,
+            BindingValue::DateTime(_) => BindingKind::DateTime,
+            BindingValue::Date(_) => BindingKind::Date,
+            BindingValue::Time(_) => BindingKind::Time,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BindingKind {
     Bool,
     Fixed,
     Real,
@@ -38,49 +65,6 @@ pub enum BindingType {
     DateTime,
     Date,
     Time,
-}
-
-impl ToString for BindingType {
-    fn to_string(&self) -> String {
-        match self {
-            BindingType::Bool => "BOOLEAN",
-            BindingType::Fixed => "FIXED",
-            BindingType::Real => "REAL",
-            BindingType::Text => "TEXT",
-            BindingType::DateTime => "TIMESTAMP_NTZ",
-            BindingType::Date => "DATE",
-            BindingType::Time => "TIME",
-        }.into()
-    }
-}
-
-impl From<BindingValue> for BindingType {
-    fn from(value: BindingValue) -> Self {
-        match value {
-            BindingValue::Bool(_) => BindingType::Bool,
-            BindingValue::Byte(_) |
-            BindingValue::SmallInt(_) |
-            BindingValue::Int(_) |
-            BindingValue::BigInt(_) |
-            BindingValue::ISize(_) |
-            BindingValue::UByte(_) |
-            BindingValue::SmallUInt(_) |
-            BindingValue::UInt(_) |
-            BindingValue::BigUInt(_) |
-            BindingValue::USize(_)
-                => BindingType::Fixed,
-            BindingValue::Float(_) |
-            BindingValue::Double(_) |
-            BindingValue::Decimal(_)
-                => BindingType::Real,
-            BindingValue::Char(_) |
-            BindingValue::String(_)
-                => BindingType::Text,
-            BindingValue::DateTime(_) => BindingType::DateTime,
-            BindingValue::Date(_) => BindingType::Date,
-            BindingValue::Time(_) => BindingType::Time,
-        }
-    }
 }
 
 impl ToString for BindingValue {
@@ -103,8 +87,15 @@ impl ToString for BindingValue {
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
             BindingValue::DateTime(value) => value.timestamp_nanos().to_string(),
-            BindingValue::Date(value) => value.and_time(NaiveTime::default()).timestamp_millis().to_string(),
-            BindingValue::Time(value) => (Decimal::new(NaiveDate::default().and_time(*value).timestamp_nanos(), 0) / rust_decimal_macros::dec!(60)).to_string(),
+            BindingValue::Date(value) => value
+                .and_time(NaiveTime::default())
+                .timestamp_millis()
+                .to_string(),
+            BindingValue::Time(value) => {
+                (Decimal::new(NaiveDate::default().and_time(*value).timestamp_nanos(), 0)
+                    / rust_decimal_macros::dec!(60))
+                .to_string()
+            }
         }
     }
 }
