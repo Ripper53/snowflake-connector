@@ -1,23 +1,16 @@
 use anyhow::Context;
 use base64::Engine;
 use jwt_simple::prelude::*;
-use std::path::Path;
 
-use crate::Result;
+use crate::{PrivateKey, PublicKey, Result};
 
 pub fn create_token(
-    public_key_path: &Path,
-    private_key_path: &Path,
+    public_key: PublicKey,
+    private_key: PrivateKey,
     account_identifier: &str,
     user: &str,
 ) -> Result<String> {
-    let private_key = std::fs::read_to_string(private_key_path)
-        .with_context(|| format!("trying to read private key from `{private_key_path:?}`"))?;
-
-    let public_key = std::fs::read_to_string(public_key_path)
-        .with_context(|| format!("trying to read public key from `{private_key_path:?}`"))?;
-
-    let fp = RS256PublicKey::from_pem(&public_key)
+    let fp = RS256PublicKey::from_pem(&public_key.0)
         .context("Creating PublicKey PEM")?
         .sha256_thumbprint();
 
@@ -35,7 +28,7 @@ pub fn create_token(
         .with_subject(qualified_username);
 
     let key_pair =
-        RS256KeyPair::from_pem(&private_key).context("Creating key par from private key pem")?;
+        RS256KeyPair::from_pem(&private_key.0).context("Creating key par from private key pem")?;
 
     key_pair.sign(claims).context("Signing Claims")
 }

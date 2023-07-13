@@ -2,7 +2,7 @@ use anyhow::{bail, Context as _};
 use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::Serialize;
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 pub use snowflake_derive::*;
 pub use snowflake_deserialize::*;
@@ -15,21 +15,24 @@ type Result<T> = anyhow::Result<T>;
 #[derive(Debug)]
 pub struct SnowflakeConnector {
     host: String,
-
+    pub token: String,
     client: reqwest::Client,
 }
 
+pub struct PrivateKey(pub String);
+pub struct PublicKey(pub String);
+
 impl SnowflakeConnector {
     pub fn try_new(
-        public_key_path: impl AsRef<Path>,
-        private_key_path: impl AsRef<Path>,
+        private_key: PrivateKey,
+        public_key: PublicKey,
         host: &str,
         account_identifier: &str,
         user: &str,
     ) -> Result<Self> {
         let token = jwt::create_token(
-            public_key_path.as_ref(),
-            private_key_path.as_ref(),
+            public_key,
+            private_key,
             &account_identifier.to_ascii_uppercase(),
             &user.to_ascii_uppercase(),
         )?;
@@ -54,6 +57,7 @@ impl SnowflakeConnector {
 
         Ok(SnowflakeConnector {
             host: format!("https://{host}.snowflakecomputing.com/api/v2/"),
+            token,
             client,
         })
     }
@@ -188,10 +192,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sql() -> Result<(), anyhow::Error> {
+    fn sql() -> Result<()> {
+        let priv_key = std::env::var("PRIVATE_KEY_PEM").expect("PRIVATE_KEY_PEM");
+        let pub_key = std::env::var("PRIVATE_KEY_PEM").expect("PRIVATE_KEY_PEM");
+
         let sql = SnowflakeConnector::try_new(
-            "./environment_variables/local/rsa_key.pub",
-            "./environment_variables/local/rsa_key.p8",
+            PrivateKey(priv_key),
+            PublicKey(pub_key),
             "HOST".into(),
             "ACCOUNT".into(),
             "USER".into(),

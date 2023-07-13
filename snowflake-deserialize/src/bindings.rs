@@ -16,12 +16,12 @@ pub enum BindingValue {
 
     Float(f32),
     Double(f64),
-    // Decimal(Decimal),
     Char(char),
     String(String),
-    //DateTime(NaiveDateTime),
-    //Date(NaiveDate),
-    //Time(NaiveTime),
+    // Decimal(Decimal),
+    // DateTime(NaiveDateTime),
+    // Date(NaiveDate),
+    // Time(NaiveTime),
 }
 
 impl BindingValue {
