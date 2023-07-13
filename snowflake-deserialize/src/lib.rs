@@ -74,16 +74,42 @@ pub trait DeserializeFromStr {
         Self: Sized;
 }
 
-impl<T> DeserializeFromStr for T
+impl<T> DeserializeFromStr for Option<T>
 where
-    T: FromStr,
-    <T as FromStr>::Err: std::fmt::Debug,
+    T: DeserializeFromStr,
 {
     fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error> {
-        match s.map(T::from_str).transpose() {
-            Ok(None) => Err(anyhow::anyhow!("unexpected null for non-nullable value")),
-            Ok(Some(b)) => Ok(b),
-            Err(err) => Err(anyhow::anyhow!("parse error: {err:?}")),
+        if s.is_none() {
+            Ok(None)
+        } else {
+            T::deserialize_from_str(s).map(Some)
         }
     }
 }
+macro_rules! impl_deserialize_from_str {
+    ($ty: ty) => {
+        impl DeserializeFromStr for $ty {
+            fn deserialize_from_str(s: Option<&str>) -> anyhow::Result<Self> {
+                s.map(<$ty>::from_str)
+                    .transpose()?
+                    .ok_or_else(|| anyhow::anyhow!("unexpected null for non-nullable value"))
+            }
+        }
+    };
+}
+
+impl_deserialize_from_str!(bool);
+impl_deserialize_from_str!(usize);
+impl_deserialize_from_str!(isize);
+impl_deserialize_from_str!(u8);
+impl_deserialize_from_str!(u16);
+impl_deserialize_from_str!(u32);
+impl_deserialize_from_str!(u64);
+impl_deserialize_from_str!(u128);
+impl_deserialize_from_str!(i16);
+impl_deserialize_from_str!(i32);
+impl_deserialize_from_str!(i64);
+impl_deserialize_from_str!(i128);
+impl_deserialize_from_str!(f32);
+impl_deserialize_from_str!(f64);
+impl_deserialize_from_str!(String);
