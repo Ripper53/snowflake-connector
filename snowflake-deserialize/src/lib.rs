@@ -17,7 +17,7 @@ pub trait SnowflakeDeserialize {
 #[serde(rename_all = "camelCase")]
 pub struct SnowflakeSqlResponse {
     pub result_set_meta_data: MetaData,
-    pub data: Vec<Vec<String>>,
+    pub data: Vec<Vec<Option<String>>>,
     pub code: String,
     pub statement_status_url: String,
     pub request_id: String,
@@ -69,44 +69,21 @@ pub struct SnowflakeSqlResult<T> {
 ///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
-    type Err;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Err>
+    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error>
     where
         Self: Sized;
 }
 
-impl DeserializeFromStr for bool {
-    type Err = anyhow::Error;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Err> {
-        match bool::from_str(s) {
-            Ok(v) => Ok(v),
-            Err(_) => Ok(s != "0"),
+impl<T> DeserializeFromStr for T
+where
+    T: FromStr,
+    <T as FromStr>::Err: std::fmt::Debug,
+{
+    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error> {
+        match s.map(T::from_str).transpose() {
+            Ok(None) => Err(anyhow::anyhow!("unexpected null for non-nullable value")),
+            Ok(Some(b)) => Ok(b),
+            Err(err) => Err(anyhow::anyhow!("parse error: {err:?}")),
         }
     }
 }
-
-macro_rules! impl_deserialize_from_str {
-    ($ty: ty) => {
-        impl DeserializeFromStr for $ty {
-            type Err = <$ty as FromStr>::Err;
-            fn deserialize_from_str(s: &str) -> Result<Self, Self::Err> {
-                <$ty>::from_str(s)
-            }
-        }
-    };
-}
-
-impl_deserialize_from_str!(usize);
-impl_deserialize_from_str!(isize);
-impl_deserialize_from_str!(u8);
-impl_deserialize_from_str!(u16);
-impl_deserialize_from_str!(u32);
-impl_deserialize_from_str!(u64);
-impl_deserialize_from_str!(u128);
-impl_deserialize_from_str!(i16);
-impl_deserialize_from_str!(i32);
-impl_deserialize_from_str!(i64);
-impl_deserialize_from_str!(i128);
-impl_deserialize_from_str!(f32);
-impl_deserialize_from_str!(f64);
-impl_deserialize_from_str!(String);
