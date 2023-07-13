@@ -1,14 +1,13 @@
+use anyhow::{bail, Context as _};
 use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::Serialize;
-use snowflake_deserialize::{bindings::*, *};
 use std::{collections::HashMap, path::Path};
 
-use anyhow::{bail, Context as _};
-pub use snowflake_deserialize;
+pub use snowflake_derive::*;
+pub use snowflake_deserialize::*;
 
 pub mod data_manipulation;
-
 mod jwt;
 
 type Result<T> = anyhow::Result<T>;
@@ -95,7 +94,7 @@ impl<'c> PendingQuery<'c> {
         Ok(res)
     }
 
-    pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>> {
+    pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSqlResult<T>> {
         let s = serde_json::to_string_pretty(&self.query).expect("serializing shit");
 
         println!("sending {s}");
@@ -115,7 +114,7 @@ impl<'c> PendingQuery<'c> {
             bail!("got non 2xx response: {status}. Body:\n{body_as_text}");
         }
 
-        let result = match serde_json::from_slice::<SnowflakeSQLResponse>(&bs) {
+        let result = match serde_json::from_slice::<SnowflakeSqlResponse>(&bs) {
             Ok(deserialized) => deserialized,
             Err(err) => {
                 let body_as_text = String::from_utf8_lossy(&bs);
@@ -209,10 +208,3 @@ mod tests {
         Ok(())
     }
 }
-
-// Features
-#[cfg(feature = "derive")]
-#[doc(hidden)]
-pub use snowflake_connector_derive::*;
-#[cfg(feature = "derive")]
-pub use snowflake_deserializer::*;

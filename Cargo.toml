@@ -11,13 +11,9 @@ exclude = ["/environment_variables"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[features]
-derive = ["snowflake-derive"]
-
-
 [dependencies]
 snowflake-deserialize = { path = "snowflake-deserialize" }
-snowflake-derive = { optional = true, path = "snowflake-derive" }
+snowflake-derive = { path = "snowflake-derive" }
 
 anyhow = "1.0.66"
 

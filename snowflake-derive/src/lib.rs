@@ -38,8 +38,11 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
 
         impl #impl_generics SnowflakeDeserialize for #name #ty_generics #where_clause {
             fn snowflake_deserialize(
-                response: snowflake_connector::SnowflakeSQLResponse,
-            ) -> Result<snowflake_deserializer::SnowflakeSQLResult<Self>, anyhow::Error> {
+                response: snowflake_connector::SnowflakeSqlResponse,
+            ) -> Result<snowflake_connector::SnowflakeSqlResult<Self>, anyhow::Error> {
+
+        use snowflake_connector::DeserializeFromStr;
+
                 let count = response.result_set_meta_data.num_rows;
                 let mut results = Vec::with_capacity(count);
                 for data in response.data {
@@ -47,7 +50,7 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                         #(#t_name: <#t_ty>::deserialize_from_str(&data[#t_index])?),*
                     });
                 }
-                Ok(snowflake_connector::SnowflakeSQLResult {
+                Ok(snowflake_connector::SnowflakeSqlResult {
                     data: results,
                 })
             }

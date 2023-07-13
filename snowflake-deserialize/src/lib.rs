@@ -1,16 +1,21 @@
-use std::str::FromStr;
 use serde::Deserialize;
+use std::str::FromStr;
 
 pub mod bindings;
 
+pub use bindings::*;
+
 pub trait SnowflakeDeserialize {
-    fn snowflake_deserialize(response: SnowflakeSQLResponse) -> Result<SnowflakeSQLResult<Self>, anyhow::Error>
-        where Self: Sized;
+    fn snowflake_deserialize(
+        response: SnowflakeSqlResponse,
+    ) -> Result<SnowflakeSqlResult<Self>, anyhow::Error>
+    where
+        Self: Sized;
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct SnowflakeSQLResponse {
+pub struct SnowflakeSqlResponse {
     pub result_set_meta_data: MetaData,
     pub data: Vec<Vec<String>>,
     pub code: String,
@@ -21,8 +26,10 @@ pub struct SnowflakeSQLResponse {
     //pub created_on: u64,
 }
 
-impl SnowflakeSQLResponse {
-    pub fn deserialize<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>, anyhow::Error> {
+impl SnowflakeSqlResponse {
+    pub fn deserialize<T: SnowflakeDeserialize>(
+        self,
+    ) -> Result<SnowflakeSqlResult<T>, anyhow::Error> {
         T::snowflake_deserialize(self)
     }
 }
@@ -53,18 +60,19 @@ pub struct RowType {
 }
 
 #[derive(Debug)]
-pub struct SnowflakeSQLResult<T> {
+pub struct SnowflakeSqlResult<T> {
     pub data: Vec<T>,
 }
 
 /// For custom data parsing,
 /// ex. you want to convert the retrieved data (strings) to enums.
-/// 
+///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
     type Err;
     fn deserialize_from_str(s: &str) -> Result<Self, Self::Err>
-        where Self: Sized;
+    where
+        Self: Sized;
 }
 
 impl DeserializeFromStr for bool {
