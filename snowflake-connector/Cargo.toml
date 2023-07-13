@@ -12,23 +12,24 @@ exclude = ["/environment_variables"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+derive = ["snowflake_connector_derive"]
+
+
 [dependencies]
 snowflake-deserializer = { path = "../snowflake-deserializer" }
 snowflake_connector_derive = { optional = true, path = "../snowflake_connector_derive" }
 
-thiserror = "1.0.37"
 anyhow = "1.0.66"
 
 serde = { version = "1.0.147", features = ["derive"] }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", default_features = false, features = [ "json", "rustls-tls" ] }
 jwt-simple = "0.11.2"
 uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = "1.0.102"
 base64 = "0.21.2"
 
 [dev-dependencies]
-snowflake-deserializer = { version = "0.2", path = "../snowflake-deserializer" }
-snowflake_connector_derive = { version = "0.1", path = "../snowflake_connector_derive" }
+snowflake-deserializer = { path = "../snowflake-deserializer" }
+snowflake_connector_derive = { path = "../snowflake_connector_derive" }
 
-[features]
-derive = ["snowflake_connector_derive"]

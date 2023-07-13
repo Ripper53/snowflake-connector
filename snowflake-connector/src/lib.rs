@@ -1,17 +1,17 @@
 use data_manipulation::DataManipulationResult;
-use errors::SnowflakeError;
 use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::Serialize;
 use snowflake_deserializer::{bindings::*, *};
 use std::{collections::HashMap, path::Path};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _};
 pub use snowflake_deserializer;
 
 pub mod data_manipulation;
-pub mod errors;
 
 mod jwt;
+
+type Result<T> = anyhow::Result<T>;
 
 #[derive(Debug)]
 pub struct SnowflakeConnector {
@@ -51,8 +51,7 @@ impl SnowflakeConnector {
 
         let client = reqwest::Client::builder()
             .default_headers(headers.into_iter().collect())
-            .build()
-            .map_err(|e| SnowflakeError::SqlClient(e.into()))?;
+            .build()?;
 
         Ok(SnowflakeConnector {
             host: format!("https://{host}.snowflakecomputing.com/api/v2/"),
@@ -106,7 +105,7 @@ impl<'c> PendingQuery<'c> {
             .json(&self.query)
             .send()
             .await
-            .map_err(|e| SnowflakeError::SqlExecution(e.into()))?;
+            .context("sending query")?;
 
         let status = res.status();
         let bs = res.bytes().await?;
