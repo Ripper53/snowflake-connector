@@ -1,10 +1,9 @@
 [package]
-name = "snowflake-deserializer"
-version = "0.3.0"
+name = "snowflake-deserialize"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Connect to Snowflake, used with snowflake-connector crate"
-repository = "https://github.com/Ripper53/snowflake-connector"
+description = "Connect to Snowflake, used with snowflake-connector crate. Forked from https://github.com/Ripper53/snowflake-connector"
 keywords = ["snowflake", "data-science"]
 categories = ["database"]
 

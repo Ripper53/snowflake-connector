@@ -1,10 +1,9 @@
 [package]
-name = "snowflake_connector_derive"
-version = "0.3.0"
+name = "snowflake-derive"
+version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Connect to Snowflake, used with snowflake-deserializer crate"
-repository = "https://github.com/Ripper53/snowflake-connector"
+description = "Connect to Snowflake, used with snowflake-deserializer crate. Forked from https://github.com/Ripper53/snowflake-connector"
 keywords = ["snowflake", "data-science"]
 categories = ["database"]
 
@@ -16,5 +15,5 @@ proc-macro = true
 [dependencies]
 syn = "1.0"
 quote = "1.0"
-snowflake-deserializer = { path = "../snowflake-deserializer" }
+snowflake-deserialize = { path = "../snowflake-deserialize" }
 

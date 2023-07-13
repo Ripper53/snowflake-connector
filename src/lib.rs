@@ -1,11 +1,11 @@
 use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use serde::Serialize;
-use snowflake_deserializer::{bindings::*, *};
+use snowflake_deserialize::{bindings::*, *};
 use std::{collections::HashMap, path::Path};
 
 use anyhow::{bail, Context as _};
-pub use snowflake_deserializer;
+pub use snowflake_deserialize;
 
 pub mod data_manipulation;
 
