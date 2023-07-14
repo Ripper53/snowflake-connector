@@ -17,7 +17,7 @@ pub trait SnowflakeDeserialize {
 #[serde(rename_all = "camelCase")]
 pub struct SnowflakeSqlResponse {
     pub result_set_meta_data: MetaData,
-    pub data: Vec<Vec<Option<String>>>,
+    pub data: Vec<Vec<String>>,
     pub code: String,
     pub statement_status_url: String,
     pub request_id: String,

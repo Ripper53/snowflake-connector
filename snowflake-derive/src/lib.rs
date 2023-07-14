@@ -58,3 +58,10 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
     };
     gen.into()
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn deserialize_example() {}
+}
