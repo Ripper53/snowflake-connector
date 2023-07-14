@@ -47,7 +47,7 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 let mut results = Vec::with_capacity(count);
                 for data in response.data {
                     results.push(#name #ty_generics {
-                        #(#t_name: <#t_ty>::deserialize_from_str(data[#t_index].as_deref())?),*
+                        #(#t_name: <#t_ty>::deserialize_from_str(&data[#t_index])?),*
                     });
                 }
                 Ok(snowflake_connector::SnowflakeSqlResult {
