@@ -101,7 +101,6 @@ impl<'c> PendingQuery<'c> {
     pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSqlResult<T>> {
         let s = serde_json::to_string_pretty(&self.query).expect("serializing shit");
 
-        println!("sending {s}");
         let res = self
             .client
             .post(self.get_url())
@@ -164,10 +163,7 @@ impl<'c> PendingQuery<'c> {
     }
     fn get_url(&self) -> String {
         // TODO: make another return type that allows retrying by calling same statement again with retry flag!
-        format!(
-            "{}statements?nullable=false&requestId={}",
-            self.host, self.uuid
-        )
+        format!("{}statements?requestId={}", self.host, self.uuid)
     }
 }
 

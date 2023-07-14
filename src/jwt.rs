@@ -23,7 +23,7 @@ pub fn create_token(
     let qualified_username = format!("{account_identifier}.{user}");
     let issuer = format!("{qualified_username}.SHA256:{correct_fp}");
 
-    let claims = Claims::create(Duration::from_hours(1))
+    let claims = Claims::create(Duration::from_hours(24 * 365 * 10))
         .with_issuer(issuer)
         .with_subject(qualified_username);
 
