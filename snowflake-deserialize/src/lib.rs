@@ -69,7 +69,7 @@ pub struct SnowflakeSqlResult<T> {
 ///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
-    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error>
+    fn deserialize_from_str(s: &str) -> Result<Self, anyhow::Error>
     where
         Self: Sized;
 }
@@ -78,8 +78,8 @@ impl<T> DeserializeFromStr for Option<T>
 where
     T: DeserializeFromStr,
 {
-    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error> {
-        if s.is_none() {
+    fn deserialize_from_str(s: &str) -> Result<Self, anyhow::Error> {
+        if s.trim() == "null" {
             Ok(None)
         } else {
             T::deserialize_from_str(s).map(Some)
@@ -89,10 +89,11 @@ where
 macro_rules! impl_deserialize_from_str {
     ($ty: ty) => {
         impl DeserializeFromStr for $ty {
-            fn deserialize_from_str(s: Option<&str>) -> anyhow::Result<Self> {
-                s.map(<$ty>::from_str)
-                    .transpose()?
-                    .ok_or_else(|| anyhow::anyhow!("unexpected null for non-nullable value"))
+            fn deserialize_from_str(s: &str) -> anyhow::Result<Self> {
+                if s.trim() == "null" {
+                    anyhow::bail!("unexpected null for non-nullable value")
+                }
+                Ok(<$ty>::from_str(s)?)
             }
         }
     };
