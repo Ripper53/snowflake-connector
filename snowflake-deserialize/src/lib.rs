@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::str::FromStr;
 
+use anyhow::Context as _;
 pub mod bindings;
 
 pub use bindings::*;
@@ -17,7 +18,7 @@ pub trait SnowflakeDeserialize {
 #[serde(rename_all = "camelCase")]
 pub struct SnowflakeSqlResponse {
     pub result_set_meta_data: MetaData,
-    pub data: Vec<Vec<String>>,
+    pub data: Vec<Vec<Option<String>>>,
     pub code: String,
     pub statement_status_url: String,
     pub request_id: String,
@@ -69,7 +70,7 @@ pub struct SnowflakeSqlResult<T> {
 ///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
-    fn deserialize_from_str(s: &str) -> Result<Self, anyhow::Error>
+    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error>
     where
         Self: Sized;
 }
@@ -78,8 +79,8 @@ impl<T> DeserializeFromStr for Option<T>
 where
     T: DeserializeFromStr,
 {
-    fn deserialize_from_str(s: &str) -> Result<Self, anyhow::Error> {
-        if s.trim() == "null" {
+    fn deserialize_from_str(s: Option<&str>) -> Result<Self, anyhow::Error> {
+        if s.is_none() {
             Ok(None)
         } else {
             T::deserialize_from_str(s).map(Some)
@@ -89,11 +90,9 @@ where
 macro_rules! impl_deserialize_from_str {
     ($ty: ty) => {
         impl DeserializeFromStr for $ty {
-            fn deserialize_from_str(s: &str) -> anyhow::Result<Self> {
-                if s.trim() == "null" {
-                    anyhow::bail!("unexpected null for non-nullable value")
-                }
-                Ok(<$ty>::from_str(s)?)
+            fn deserialize_from_str(s: Option<&str>) -> anyhow::Result<Self> {
+                let res = s.map(<$ty>::from_str).context("unexpected null")??;
+                Ok(res)
             }
         }
     };

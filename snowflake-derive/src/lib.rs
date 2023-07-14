@@ -34,20 +34,23 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
         Data::Enum(_) => panic!("This macro can only be derived in a struct, not enum."),
         Data::Union(_) => panic!("This macro can only be derived in a struct, not union."),
     };
+
+    #[rustfmt::skip]
     let gen = quote! {
 
-        impl #impl_generics SnowflakeDeserialize for #name #ty_generics #where_clause {
+        impl #impl_generics snowflake_connector::SnowflakeDeserialize for #name #ty_generics #where_clause {
             fn snowflake_deserialize(
                 response: snowflake_connector::SnowflakeSqlResponse,
             ) -> std::result::Result<snowflake_connector::SnowflakeSqlResult<Self>, anyhow::Error> {
 
-        use snowflake_connector::DeserializeFromStr;
+		use snowflake_connector::DeserializeFromStr;
 
                 let count = response.result_set_meta_data.num_rows;
                 let mut results = Vec::with_capacity(count);
                 for data in response.data {
                     results.push(#name #ty_generics {
-                        #(#t_name: <#t_ty>::deserialize_from_str(&data[#t_index])?),*
+                        #(#t_name: <#t_ty>::deserialize_from_str(data[#t_index].as_deref())
+			  .context(concat!("deserializing field `", stringify!(#t_name), "`"))?),*
                     });
                 }
                 Ok(snowflake_connector::SnowflakeSqlResult {
@@ -57,11 +60,4 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
         }
     };
     gen.into()
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn deserialize_example() {}
 }
