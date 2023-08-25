@@ -16,5 +16,5 @@ time = [ "dep:time" ]
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 anyhow = "1"
-uuid = { version = "1" }
+uuid = "1"
 time = { version = "0.3", optional = true, features = [ "macros" ] }
