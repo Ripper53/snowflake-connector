@@ -16,4 +16,4 @@ uuid = [ "dep:uuid" ]
 [dependencies]
 serde = { version = "1.0.147", features = ["derive"] }
 anyhow = "1.0.66"
-uuid = { version = "1.4.1", optional = true }
+uuid = { version = "1", optional = true }
