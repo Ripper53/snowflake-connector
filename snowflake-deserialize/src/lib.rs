@@ -2,7 +2,14 @@ use serde::Deserialize;
 use std::str::FromStr;
 
 use anyhow::Context as _;
+
 pub mod bindings;
+
+#[cfg(feature = "time")]
+mod datetime;
+
+#[cfg(feature = "time")]
+pub use datetime::*;
 
 pub use bindings::*;
 

@@ -99,8 +99,6 @@ impl<'c> PendingQuery<'c> {
     }
 
     pub async fn select<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSqlResult<T>> {
-        let s = serde_json::to_string_pretty(&self.query).expect("serializing shit");
-
         let res = self
             .client
             .post(self.get_url())

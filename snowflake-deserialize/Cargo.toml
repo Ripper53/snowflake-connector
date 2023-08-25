@@ -10,10 +10,11 @@ categories = ["database"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "uuid" ]
-uuid = [ "dep:uuid" ]
+default = [ ]
+time = [ "dep:time" ]
 
 [dependencies]
-serde = { version = "1.0.147", features = ["derive"] }
-anyhow = "1.0.66"
-uuid = { version = "1", optional = true }
+serde = { version = "1", features = ["derive"] }
+anyhow = "1"
+uuid = { version = "1" }
+time = { version = "0.3", optional = true, features = [ "macros" ] }
