@@ -113,3 +113,6 @@ impl_deserialize_from_str!(i128);
 impl_deserialize_from_str!(f32);
 impl_deserialize_from_str!(f64);
 impl_deserialize_from_str!(String);
+
+#[cfg(feature = "uuid")]
+impl_deserialize_from_str!(uuid::Uuid);
