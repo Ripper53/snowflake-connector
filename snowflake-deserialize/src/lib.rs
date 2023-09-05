@@ -23,6 +23,13 @@ pub trait SnowflakeDeserialize {
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct PartitionInfo {
+    row_count: usize,
+    uncompressed_size: usize,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SnowflakeSqlResponse {
     pub result_set_meta_data: MetaData,
     pub data: Vec<Vec<Option<String>>>,
@@ -31,10 +38,15 @@ pub struct SnowflakeSqlResponse {
     pub request_id: String,
     pub sql_state: String,
     pub message: String,
+    pub statement_handle: String,
     //pub created_on: u64,
 }
 
 impl SnowflakeSqlResponse {
+    pub fn has_partitions(&self) -> bool {
+        self.result_set_meta_data.partition_info.len() > 1
+    }
+
     pub fn deserialize<T: SnowflakeDeserialize>(
         self,
     ) -> Result<SnowflakeSqlResult<T>, anyhow::Error> {
@@ -48,6 +60,7 @@ pub struct MetaData {
     pub num_rows: usize,
     pub format: String,
     pub row_type: Vec<RowType>,
+    pub partition_info: Vec<PartitionInfo>,
 }
 
 #[derive(Deserialize, Debug)]

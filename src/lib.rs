@@ -1,7 +1,7 @@
 use anyhow::{bail, Context as _};
 use data_manipulation::DataManipulationResult;
 use reqwest::header::{HeaderName, HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub use snowflake_derive::*;
@@ -53,6 +53,7 @@ impl SnowflakeConnector {
 
         let client = reqwest::Client::builder()
             .default_headers(headers.into_iter().collect())
+            .gzip(true)
             .build()?;
 
         Ok(SnowflakeConnector {
@@ -75,6 +76,12 @@ impl SnowflakeConnector {
             uuid: uuid::Uuid::new_v4(),
         }
     }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct Partition {
+    data: Vec<Vec<Option<String>>>,
 }
 
 #[derive(Debug)]
@@ -115,7 +122,7 @@ impl<'c> PendingQuery<'c> {
             bail!("got non 2xx response: {status}. Body:\n{body_as_text}");
         }
 
-        let result = match serde_json::from_slice::<SnowflakeSqlResponse>(&bs) {
+        let mut result = match serde_json::from_slice::<SnowflakeSqlResponse>(&bs) {
             Ok(deserialized) => deserialized,
             Err(err) => {
                 let body_as_text = String::from_utf8_lossy(&bs);
@@ -123,8 +130,49 @@ impl<'c> PendingQuery<'c> {
             }
         };
 
+        if result.has_partitions() {
+            self.fetch_and_merge_partitions(&mut result).await?;
+        }
+
         result.deserialize()
     }
+
+    async fn fetch_and_merge_partitions(&self, result: &mut SnowflakeSqlResponse) -> Result<()> {
+        for index in 1..result.result_set_meta_data.partition_info.len() {
+
+            println!("Getting partition {index}");
+            let url = self.get_partition_url(&result.statement_handle, index);
+
+            let res = self
+                .client
+                .get(url)
+                .json(&self.query)
+                .send()
+                .await
+                .context("sending query")?;
+
+            let status = res.status();
+            let bs = res.bytes().await?;
+
+            if !status.is_success() {
+                let body_as_text = String::from_utf8_lossy(&bs);
+                bail!("got non 2xx response: {status}. Body:\n{body_as_text}");
+            }
+
+            let partition = match serde_json::from_slice::<Partition>(&bs) {
+                Ok(deserialized) => deserialized,
+                Err(err) => {
+                    let body_as_text = String::from_utf8_lossy(&bs);
+                    bail!("Error parsing result as SnowflakeSqlResponse: {err}. Body:\n{body_as_text}")
+                }
+            };
+
+            result.data.extend(partition.data);
+        }
+
+        Ok(())
+    }
+
     /// Use with `delete`, `insert`, `update` row(s).
     pub async fn manipulate(self) -> Result<DataManipulationResult> {
         let res = self
@@ -162,6 +210,10 @@ impl<'c> PendingQuery<'c> {
     fn get_url(&self) -> String {
         // TODO: make another return type that allows retrying by calling same statement again with retry flag!
         format!("{}statements?requestId={}", self.host, self.uuid)
+    }
+
+    fn get_partition_url(&self, request_handle: &str, index: usize) -> String {
+        format!("{}statements/{request_handle}?partition={}", self.host, index)
     }
 }
 
