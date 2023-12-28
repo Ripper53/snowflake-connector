@@ -1,5 +1,7 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
+
 use data_manipulation::DataManipulationResult;
+use jwt_simple::algorithms::RS256KeyPair;
 use reqwest::header::{HeaderMap, CONTENT_TYPE, AUTHORIZATION, ACCEPT, USER_AGENT};
 use serde::Serialize;
 use snowflake_deserializer::{*, bindings::*};
@@ -17,16 +19,17 @@ pub struct SnowflakeConnector {
 }
 
 impl SnowflakeConnector {
-    pub fn try_new<P: AsRef<Path>>(
-        public_key_path: P,
-        private_key_path: P,
+    /// Create a new Snowflake connector.
+    /// 
+    /// This only supports key pair authentication.
+    pub fn try_new(
+        key_pair: &RS256KeyPair,
         host: String,
         account_identifier: String,
         user: String,
     ) -> Result<Self, SnowflakeError> {
         let token = jwt::create_token(
-            public_key_path,
-            private_key_path,
+            key_pair,
             &account_identifier.to_ascii_uppercase(),
             &user.to_ascii_uppercase(),
         )?;
@@ -182,9 +185,9 @@ mod tests {
 
     #[test]
     fn sql() -> Result<(), anyhow::Error> {
+        let key_pair = RS256KeyPair::generate(2048)?;
         let sql = SnowflakeConnector::try_new(
-            "./environment_variables/local/rsa_key.pub",
-            "./environment_variables/local/rsa_key.p8",
+            &key_pair,
             "HOST".into(),
             "ACCOUNT".into(),
             "USER".into(),
