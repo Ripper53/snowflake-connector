@@ -2,6 +2,7 @@ use data_manipulation::DataManipulationResult;
 use jwt::{KeyPairError, TokenFromFileError};
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, USER_AGENT};
 use serde::Serialize;
+pub use serde_json;
 use snowflake_deserializer::{bindings::*, *};
 use std::{collections::HashMap, path::Path};
 

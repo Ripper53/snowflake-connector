@@ -10,7 +10,10 @@ use syn::{self, Data, DeriveInput, Fields, parse_macro_input};
 /// and generates a variant for each unique type that must implement `DeserializeFromStr`.
 ///
 /// Use the attribute `snowflake_deserialize_error` for a custom error name. Ex. `#[snowflake_deserialize_error(CustomErrorName)]`
-#[proc_macro_derive(SnowflakeDeserialize, attributes(snowflake_deserialize_error))]
+#[proc_macro_derive(
+    SnowflakeDeserialize,
+    attributes(snowflake_deserialize_error, snowflake)
+)]
 pub fn snowflake_deserialize_derive(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = parse_macro_input!(input);
     impl_snowflake_deserialize(&ast)
@@ -33,42 +36,71 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
-    let (t_name, t_str, t_index, t_ty, t_variant, unique_name, unique_ty) = match &ast.data {
+    let (g, unique_name, unique_ty, unique_error) = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(data) => {
                 let count = data.named.len();
-                let mut t_name = Vec::with_capacity(count);
-                let mut t_str = Vec::with_capacity(count);
-                let mut t_index = Vec::with_capacity(count);
-                let mut t_ty = Vec::with_capacity(count);
-                let mut unique_name = std::collections::HashSet::with_capacity(count);
+                let mut g = Vec::with_capacity(count);
+                let mut unique_name = std::collections::HashMap::with_capacity(count);
                 for (i, field) in data.named.iter().enumerate() {
                     let name = field.ident.as_ref().unwrap();
+                    let t_str = syn::LitStr::new(&name.to_string(), name.span());
                     let ty = &field.ty;
-                    t_name.push(name);
-                    t_str.push(syn::LitStr::new(&name.to_string(), name.span()));
-                    t_index.push(i);
+                    let t_variant = if let syn::Type::Path(path) = ty
+                        && let Some(seg) = path.path.segments.first()
+                    {
+                        let s = seg.ident.to_string();
+                        syn::Ident::new(&to_upper_camel(&s), seg.ident.span())
+                    } else {
+                        panic!();
+                    };
+                    let (gg, error) = if let Some(f) =
+                        field.attrs.iter().find(|f| f.path().is_ident("snowflake"))
+                        && let syn::Meta::Path(list) = f.parse_args().unwrap()
+                        && let Some(first) = list.segments.first()
+                        && first.ident.to_string() == "json"
+                    {
+                        (
+                            quote! {
+                                #name: ::snowflake_connector::serde_json::de::from_str::<#ty>(&data[#i]).map_err(|error| {
+                                    #custom_error::#t_variant {
+                                        field_name: #t_str,
+                                        actual_value: data[#i].clone(),
+                                        error,
+                                    }
+                                })?
+                            },
+                            quote!(::snowflake_connector::serde_json::Error),
+                        )
+                    } else {
+                        (
+                            quote! {
+                                #name: <#ty as ::snowflake_connector::DeserializeFromStr>::deserialize_from_str(&data[#i]).map_err(|error| {
+                                    #custom_error::#t_variant {
+                                        field_name: #t_str,
+                                        actual_value: data[#i].clone(),
+                                        error,
+                                    }
+                                })?
+                            },
+                            quote!(<#ty as ::snowflake_connector::DeserializeFromStr>::Error),
+                        )
+                    };
+                    g.push(gg);
                     if let syn::Type::Path(path) = ty
                         && let Some(seg) = path.path.segments.first()
                     {
                         let s = seg.ident.to_string();
                         let name = syn::Ident::new(&to_upper_camel(&s), seg.ident.span());
-                        t_ty.push((ty, name));
-                        unique_name
-                            .insert((syn::Ident::new(&to_upper_camel(&s), seg.ident.span()), ty));
+                        unique_name.insert(
+                            syn::Ident::new(&to_upper_camel(&s), seg.ident.span()),
+                            (ty, error),
+                        );
                     }
                 }
-                let (t_ty, t_variant): (Vec<_>, Vec<_>) = t_ty.into_iter().unzip();
-                let (unique_name, unique_ty): (Vec<_>, Vec<_>) = unique_name.into_iter().unzip();
-                (
-                    t_name,
-                    t_str,
-                    t_index,
-                    t_ty,
-                    t_variant,
-                    unique_name,
-                    unique_ty,
-                )
+                let (unique_name, (unique_ty, unique_error)): (Vec<_>, (Vec<_>, Vec<_>)) =
+                    unique_name.into_iter().into_iter().unzip();
+                (g, unique_name, unique_ty, unique_error)
             }
             _ => panic!("Named fields only!"),
         },
@@ -86,14 +118,9 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 for data in response.data {
                     results.push(
                         #name #ty_generics {
-                            #(#t_name: <#t_ty>::deserialize_from_str(&data[#t_index]).map_err(|error| {
-                                #custom_error::#t_variant {
-                                    field_name: #t_str,
-                                    actual_value: data[#t_index].clone(),
-                                    error,
-                                }
-                        })?),*
-                    });
+                            #(#g,)*
+                        }
+                    );
                 }
                 Ok(::snowflake_connector::SnowflakeSQLResult {
                     data: results,
@@ -106,7 +133,8 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 #unique_name {
                     field_name: &'static str,
                     actual_value: ::std::string::String,
-                    error: <#unique_ty as ::snowflake_connector::DeserializeFromStr>::Error,
+                    //error: <#unique_ty as ::snowflake_connector::DeserializeFromStr>::Error,
+                    error: #unique_error,
                 },
             )*
         }
