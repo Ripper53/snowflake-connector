@@ -1,11 +1,15 @@
-use std::str::FromStr;
 use serde::Deserialize;
+use std::str::FromStr;
 
 pub mod bindings;
 
 pub trait SnowflakeDeserialize {
-    fn snowflake_deserialize(response: SnowflakeSQLResponse) -> Result<SnowflakeSQLResult<Self>, anyhow::Error>
-        where Self: Sized;
+    type Error;
+    fn snowflake_deserialize(
+        response: SnowflakeSQLResponse,
+    ) -> Result<SnowflakeSQLResult<Self>, Self::Error>
+    where
+        Self: Sized;
 }
 
 #[derive(Deserialize, Debug)]
@@ -22,7 +26,7 @@ pub struct SnowflakeSQLResponse {
 }
 
 impl SnowflakeSQLResponse {
-    pub fn deserialize<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>, anyhow::Error> {
+    pub fn deserialize<T: SnowflakeDeserialize>(self) -> Result<SnowflakeSQLResult<T>, T::Error> {
         T::snowflake_deserialize(self)
     }
 }
@@ -59,35 +63,27 @@ pub struct SnowflakeSQLResult<T> {
 
 /// For custom data parsing,
 /// ex. you want to convert the retrieved data (strings) to enums.
-/// 
+///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
-    type Err;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Err>
-        where Self: Sized;
-}
-
-impl DeserializeFromStr for bool {
-    type Err = anyhow::Error;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Err> {
-        match bool::from_str(s) {
-            Ok(v) => Ok(v),
-            Err(_) => Ok(s != "0"),
-        }
-    }
+    type Error;
+    fn deserialize_from_str(s: &str) -> Result<Self, Self::Error>
+    where
+        Self: Sized;
 }
 
 macro_rules! impl_deserialize_from_str {
     ($ty: ty) => {
         impl DeserializeFromStr for $ty {
-            type Err = <$ty as FromStr>::Err;
-            fn deserialize_from_str(s: &str) -> Result<Self, Self::Err> {
+            type Error = <$ty as FromStr>::Err;
+            fn deserialize_from_str(s: &str) -> Result<Self, Self::Error> {
                 <$ty>::from_str(s)
             }
         }
     };
 }
 
+impl_deserialize_from_str!(bool);
 impl_deserialize_from_str!(usize);
 impl_deserialize_from_str!(isize);
 impl_deserialize_from_str!(u8);

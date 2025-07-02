@@ -1,6 +1,3 @@
-# Snowflake Connector
-**Under heavy development.** Might be wise to point to git instead of crates.io for now.
-
 # Usage
 Add following line to Cargo.toml:
 
@@ -10,7 +7,7 @@ snowflake-connector = { version = "0.2", features = ["derive"] }
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
 
-You must pass the paths to your private and public key.
+You can pass the paths to your private and public key using `SnowflakeConnector::try_new_from_file`, or pass them directly using `SnowflakeConnector::try_new`.
 
 ## Dev Setup
 Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`.
@@ -20,26 +17,34 @@ Add your public and private key under a folder, and feed the paths into `Snowfla
 ## How it Works
 Below example is not tested, but you get the gist:
 ```rust
-use snowflake_connector::{*, errors::SnowflakeError};
+use snowflake_connector::*;
 
-fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeError> {
-    let connector = SnowflakeConnector::try_new(
+fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeSQLSelectError> {
+    let connector = SnowflakeConnector::try_new_from_file(
         "PUBLIC/KEY/PATH",
         "PRIVATE/KEY/PATH",
         "COMPANY.ACCOUNT",
         "ACCOUNT",
         "USER@EXAMPLE.COM",
     )?;
-    connector
+    Ok(connector
         .execute("DB", "WH")
-        .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")?
+        .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")
         .add_binding(420)
-        .select::<Test>().await
+        .select::<Test>().await?)
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SnowflakeError {
+    #[error(transparent)]
+    New(#[from] NewSnowflakeConnectorFromFileError),
+    #[error(transparent)]
+    Select(#[from] SnowflakeSQLSelectError),
 }
 
 fn main() {
     if let Ok(data) = get_from_snowflake() {
-        println!("{:#?}", data)
+        println!("{:#?}", data);
     } else {
         panic!("Failed to retrieve data from snowflake!");
     }

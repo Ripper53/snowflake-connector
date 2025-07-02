@@ -1,7 +1,7 @@
 [package]
 name = "snowflake-connector"
-version = "0.2.0"
-edition = "2021"
+version = "0.3.0"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Connect to Snowflake"
 readme = "README.md"
@@ -13,20 +13,24 @@ exclude = ["/environment_variables"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-snowflake-deserializer = { version = "0.2", path = "../snowflake-deserializer" }
-snowflake_connector_derive = { version = "0.1", optional = true, path = "../snowflake_connector_derive" }
+snowflake-deserializer = { version = "0.3", path = "../snowflake-deserializer" }
+snowflake_connector_derive = { version = "0.2", optional = true, path = "../snowflake_connector_derive" }
 
-thiserror = "1.0.37"
-anyhow = "1.0.66"
+thiserror = "2.0.12"
+anyhow = "1.0.98"
 
-serde = { version = "1.0.147", features = ["derive"] }
-reqwest = { version = "0.11", features = ["json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+reqwest = { version = "0.12.21", features = ["json"] }
 jwt-simple = "0.11.2"
-uuid = { version = "1.2.2", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.17.0", features = [
+    "v4",
+    "fast-rng",
+    "macro-diagnostics",
+] }
 
 [dev-dependencies]
-snowflake-deserializer = { version = "0.2", path = "../snowflake-deserializer" }
-snowflake_connector_derive = { version = "0.1", path = "../snowflake_connector_derive" }
+snowflake-deserializer = { version = "0.3", path = "../snowflake-deserializer" }
+snowflake_connector_derive = { version = "0.2", path = "../snowflake_connector_derive" }
 
 [features]
 derive = ["snowflake_connector_derive"]
