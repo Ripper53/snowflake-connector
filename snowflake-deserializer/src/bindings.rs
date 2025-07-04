@@ -1,5 +1,4 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
 pub enum BindingValue {
@@ -19,7 +18,8 @@ pub enum BindingValue {
 
     Float(f32),
     Double(f64),
-    Decimal(Decimal),
+    #[cfg(feature = "decimal")]
+    Decimal(rust_decimal::Decimal),
 
     Char(char),
     String(String),
@@ -69,9 +69,9 @@ impl From<BindingValue> for BindingType {
             | BindingValue::UInt(_)
             | BindingValue::BigUInt(_)
             | BindingValue::USize(_) => BindingType::Fixed,
-            BindingValue::Float(_) | BindingValue::Double(_) | BindingValue::Decimal(_) => {
-                BindingType::Real
-            }
+            BindingValue::Float(_) | BindingValue::Double(_) => BindingType::Real,
+            #[cfg(feature = "decimal")]
+            BindingValue::Decimal(_) => BindingType::Real,
             BindingValue::Char(_) | BindingValue::String(_) => BindingType::Text,
             BindingValue::DateTime(_) => BindingType::DateTime,
             BindingValue::Date(_) => BindingType::Date,
@@ -96,6 +96,7 @@ impl ToString for BindingValue {
             BindingValue::USize(value) => value.to_string(),
             BindingValue::Float(value) => value.to_string(),
             BindingValue::Double(value) => value.to_string(),
+            #[cfg(feature = "decimal")]
             BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
@@ -105,9 +106,19 @@ impl ToString for BindingValue {
                 .timestamp_millis()
                 .to_string(),
             BindingValue::Time(value) => {
-                (Decimal::new(NaiveDate::default().and_time(*value).timestamp_nanos(), 0)
-                    / rust_decimal_macros::dec!(60))
-                .to_string()
+                #[cfg(feature = "decimal")]
+                {
+                    (rust_decimal::Decimal::new(
+                        NaiveDate::default().and_time(*value).timestamp_nanos(),
+                        0,
+                    ) / rust_decimal::prelude::dec!(60))
+                    .to_string()
+                }
+                #[cfg(not(feature = "decimal"))]
+                {
+                    (NaiveDate::default().and_time(*value).timestamp_nanos() as f64 / 60.0)
+                        .to_string()
+                }
             }
         }
     }
@@ -141,7 +152,8 @@ impl_from_binding_value!(u64, BindingValue::BigUInt);
 impl_from_binding_value!(usize, BindingValue::USize);
 impl_from_binding_value!(f32, BindingValue::Float);
 impl_from_binding_value!(f64, BindingValue::Double);
-impl_from_binding_value!(Decimal, BindingValue::Decimal);
+#[cfg(feature = "decimal")]
+impl_from_binding_value!(rust_decimal::Decimal, BindingValue::Decimal);
 impl_from_binding_value!(char, BindingValue::Char);
 impl_from_binding_value!(String, BindingValue::String);
 impl_from_binding_value!(NaiveDateTime, BindingValue::DateTime);

@@ -1,0 +1,159 @@
+4263
+{
+  "resultSetMetaData" : {
+    "numRows" : 0,
+    "format" : "jsonv2",
+    "partitionInfo" : [ {
+      "rowCount" : 0,
+      "uncompressedSize" : 0
+    } ],
+    "rowType" : [ {
+      "name" : "MENU_ID",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : 0,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "fixed",
+      "precision" : 19,
+      "collation" : null
+    }, {
+      "name" : "MENU_TYPE_ID",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : 0,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "fixed",
+      "precision" : 38,
+      "collation" : null
+    }, {
+      "name" : "MENU_TYPE",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : 16777216,
+      "length" : 16777216,
+      "type" : "text",
+      "precision" : null,
+      "collation" : null
+    }, {
+      "name" : "TRUCK_BRAND_NAME",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : 16777216,
+      "length" : 16777216,
+      "type" : "text",
+      "precision" : null,
+      "collation" : null
+    }, {
+      "name" : "MENU_ITEM_ID",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : 0,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "fixed",
+      "precision" : 38,
+      "collation" : null
+    }, {
+      "name" : "MENU_ITEM_NAME",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : 16777216,
+      "length" : 16777216,
+      "type" : "text",
+      "precision" : null,
+      "collation" : null
+    }, {
+      "name" : "ITEM_CATEGORY",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : 16777216,
+      "length" : 16777216,
+      "type" : "text",
+      "precision" : null,
+      "collation" : null
+    }, {
+      "name" : "ITEM_SUBCATEGORY",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : 16777216,
+      "length" : 16777216,
+      "type" : "text",
+      "precision" : null,
+      "collation" : null
+    }, {
+      "name" : "COST_OF_GOODS_USD",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : 4,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "fixed",
+      "precision" : 38,
+      "collation" : null
+    }, {
+      "name" : "SALE_PRICE_USD",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : 4,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "fixed",
+      "precision" : 38,
+      "collation" : null
+    }, {
+      "name" : "MENU_ITEM_HEALTH_METRICS_OBJ",
+      "database" : "SNOWFLAKE_LEARNING_DB",
+      "schema" : "RIPPER_LOAD_SAMPLE_DATA_FROM_S3",
+      "table" : "MENU",
+      "nullable" : true,
+      "scale" : null,
+      "byteLength" : null,
+      "length" : null,
+      "type" : "variant",
+      "precision" : null,
+      "collation" : null
+    } ]
+  },
+  "data" : [ ],
+  "code" : "090001",
+  "statementStatusUrl" : "/api/v2/statements/01bd7161-3203-2268-0000-0006793ed059?requestId=90bb9ef2-7bed-4c0a-9106-52a5bba042c8",
+  "requestId" : "90bb9ef2-7bed-4c0a-9106-52a5bba042c8",
+  "sqlState" : "00000",
+  "statementHandle" : "01bd7161-3203-2268-0000-0006793ed059",
+  "message" : "Statement executed successfully.",
+  "createdOn" : 1751552739261
+}
+222
+{
+  "code" : "002003",
+  "message" : "SQL compilation error:\nSchema 'SNOWFLAKE_LEARNING_DB.PUBLIC' does not exist or not authorized.",
+  "sqlState" : "02000",
+  "statementHandle" : "01bd7161-3203-2134-0000-0006793e24a1"
+}

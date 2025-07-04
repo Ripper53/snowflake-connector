@@ -1,0 +1,11 @@
+private_key_path = "../snowflake-connector/environment_variables/local/rsa_key.p8"
+public_key_path = "../snowflake-connector/environment_variables/local/rsa_key.pub"
+host = "mkhtaib-ls16890"
+account = "MKHTAIB-LS16890"
+user = "RUST_CLIENT"
+role = "PUBLIC"
+warehouse = "SNOWFLAKE_LEARNING_WH"
+
+[[database]]
+name = "SNOWFLAKE_LEARNING_DB"
+tables = ["RIPPER_LOAD_SAMPLE_DATA_FROM_S3.MENU", "PUBLIC.ACC"]

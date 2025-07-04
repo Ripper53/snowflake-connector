@@ -1,2 +1,4 @@
 /target
 /Cargo.lock
+/snowflake_connector_derive/snowflake-info.toml
+/snowflake_connector_derive/snowflake-data.json

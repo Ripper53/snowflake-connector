@@ -16,7 +16,11 @@ proc-macro = true
 [dependencies]
 syn = "2.0"
 quote = "1.0"
-snowflake-deserializer = { version = "0.3", path = "../snowflake-deserializer" }
+serde_json = "1.0"
+heck = "0.5"
 
-[dev-dependencies]
+[build-dependencies]
 snowflake-deserializer = { version = "0.3", path = "../snowflake-deserializer" }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.0", features = ["full"] }
+toml = "0.8"
