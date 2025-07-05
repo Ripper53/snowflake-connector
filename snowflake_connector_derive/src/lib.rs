@@ -1,11 +1,11 @@
 extern crate proc_macro;
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 
 use heck::{ToSnakeCase, ToUpperCamelCase};
-use proc_macro::TokenStream;
+use proc_macro::{Span, TokenStream};
 use quote::quote;
-use syn::{self, Data, DeriveInput, Fields, LitStr, parse_macro_input};
+use syn::{self, Data, DeriveInput, Fields, LitStr, parse::Parse, parse_macro_input};
 
 /// Implements `SnowflakeDeserialize` for struct.
 ///
@@ -177,120 +177,4 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
         generated_code
     );*/
     generated_code.into()
-}
-
-/* ---------------- */
-
-#[proc_macro_derive(SnowflakeTable, attributes(snowflake_path))]
-pub fn snowflake_table_derive(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = parse_macro_input!(input);
-    impl_snowflake_table(&ast)
-}
-
-fn impl_snowflake_table(ast: &DeriveInput) -> TokenStream {
-    let mut path = None;
-    for attr in ast.attrs.iter() {
-        let p = attr.path();
-        if p.is_ident("snowflake_path") {
-            path = Some(attr.parse_args::<LitStr>().unwrap());
-            break;
-        }
-    }
-    let path = if let Some(path) = path {
-        std::path::Path::new(&path.value()).to_path_buf()
-    } else {
-        std::path::Path::new(env!("OUT_DIR")).join("snowflake-data.json")
-    };
-    let file = std::fs::File::open(path).unwrap();
-    let mut buf = BufReader::new(file);
-    let mut read = String::new();
-    let mut numbers = String::new();
-    let mut read = Vec::new();
-    let mut structs = Vec::new();
-    while let Ok(v) = buf.read_line(&mut numbers)
-        && v != 0
-    {
-        let sliced_number = numbers.trim();
-        let len = sliced_number.parse::<usize>();
-        if let Err(_) = len {
-            //panic!("STRUCTS: {}", structs.len());
-            break;
-        }
-        let len = len.unwrap();
-        numbers.clear();
-        read.clear();
-        for _ in 0..len {
-            read.push(0);
-        }
-        let slice = read.as_mut_slice();
-        if buf.read_exact(slice).is_err() {
-            break;
-        }
-        let value: serde_json::Value = serde_json::from_slice(slice).expect(&format!(
-            "Failed to parse query: {}",
-            str::from_utf8(slice).unwrap()
-        ));
-        let metadata = value
-            .get("resultSetMetaData")
-            .expect("Could not find metadata");
-        let row_types = metadata
-            .get("rowType")
-            .unwrap()
-            .as_array()
-            .expect("Failed to find `rowType`");
-        let mut names = Vec::with_capacity(row_types.len());
-        let mut types = Vec::with_capacity(row_types.len());
-        let mut tables = Vec::new();
-        for row_type in row_types {
-            let name = row_type
-                .get("name")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_snake_case();
-            names.push(syn::Ident::new(&name, ast.ident.span()));
-            let nullable = row_type.get("nullable").unwrap().as_bool().unwrap();
-            let ty = row_type.get("type").unwrap().as_str().unwrap();
-            let ty = match ty {
-                "fixed" => quote!(usize),
-                "text" | "variant" => quote!(::std::string::String),
-                unknown_type => panic!("unknown type: {unknown_type}"),
-            };
-            if nullable {
-                types.push(quote!(::std::option::Option<#ty>));
-            } else {
-                types.push(ty);
-            }
-            let table = row_type
-                .get("table")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_upper_camel_case();
-            tables.push(syn::Ident::new(&table, ast.ident.span()));
-        }
-        tables.dedup();
-        if tables.is_empty() {
-            panic!("No tables found for query");
-        } else if tables.len() == 1 {
-            let table = tables.pop().unwrap();
-            structs.push(quote! {
-                #[derive(::snowflake_connector::SnowflakeDeserialize, Debug)]
-                pub struct #table {
-                    #(
-                        #names: #types,
-                    )*
-                }
-            });
-        } else {
-            todo!("Unhandled multiple table query! Amount: {}", tables.len());
-        }
-    }
-    let generated = quote! {
-        #(
-            #structs
-        )*
-    };
-    //eprintln!("Generated code from SnowflakeTable macro:\n{}", generated);
-    generated.into()
 }
