@@ -1,8 +1,11 @@
+# Snowflake Connector
+Use of [RustRover](https://www.jetbrains.com/rust/) is HIGHLY encouraged when using `derive` feature (enabled by default), otherwise false positive `proc_macro` errors may occur when using VS Code or other code editors, but builds will work fine.
+
 # Usage
 Add following line to Cargo.toml:
 
 ```toml
-snowflake-connector = { version = "0.2", features = ["derive"] }
+snowflake-connector = "0.3"
 ```
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
@@ -13,6 +16,49 @@ You can pass the paths to your private and public key using `SnowflakeConnector:
 Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`.
 
 **Make sure to ignore the keys. You do not want to commit your keys to a repository.**
+
+## Derive Features
+`snowflake-connector` will attempt to auto-generate table structs for you. There are two requirements:
+1. `SNOWFLAKE_PATH` environment variable must be defined
+2. `snowflake_config.toml` must reside in the folder `SNOWFLAKE_PATH` points to
+
+Example `snowflake_config.toml`:
+```toml
+private_key_path = "./keys/local/rsa_key.p8"
+public_key_path = "./keys/local/rsa_key.pub"
+host = "FIRST-LAST"
+account = "FIRST-LAST"
+user = "USER"
+role = "PUBLIC"
+warehouse = "SNOWFLAKE_LEARNING_WH"
+
+# First database we want to load tables from
+[[databases]]
+name = "SNOWFLAKE_LEARNING_DB" # Database name
+# Tables from first database
+[[databases.tables]]
+name = "USER_SAMPLE_DATA_FROM_S3.MENU" # Schema.Table name
+# By default, all numbers are signed, below marks certain columns as unsigned
+unsigned = ["menu_id", "menu_type_id", "menu_item_id"]
+# Custom struct below that will be parsed from json
+[databases.tables.json]
+menu_item_health_metrics_obj = "crate::snowflake::metrics::Metrics" # Full path to struct (must implement `serde::Deserialize`)
+
+# Second database we want to load tables from
+[[databases]]
+name = "SNOWFLAKE_SAMPLE_DATA" # Database name
+[[databases.tables]]
+name = "TPCH_SF1.ORDERS" # Schema.Table name
+```
+This will create a `snowflake_tables.rs` file which will contain two tables:
+1. `snowflake_learning_db::Menu`
+2. `snowflake_sample_data::Orders`
+
+There are two ways to regenerate Snowflake tables:
+1. `touch` or modify the `snowflake_config.toml` file
+2. or run `cargo clean` and then `cargo build` to force rebuild dependencies
+
+**BE WARY OF AUTO-GENERATED CODE DURING CODE REVIEWS.** Someone malicious may inject their own code into the auto-generated file. If you are someone trusted, regenerating the tables on your end and committing them into the branch is wise, or better yet, set up an automated process.
 
 ## How it Works
 Below example is not tested, but you get the gist:
@@ -28,8 +74,9 @@ fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeSQLSelectEr
         "USER@EXAMPLE.COM",
     )?;
     Ok(connector
-        .execute("DB", "WH")
+        .execute("DB")
         .sql("SELECT * FROM TEST_TABLE WHERE id = ? LIMIT 69")
+        .with_warehouse("WH")
         .add_binding(420)
         .select::<Test>().await?)
 }

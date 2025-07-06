@@ -1,3 +1,4 @@
+pub use chrono;
 use data_manipulation::DataManipulationResult;
 use jwt::{KeyPairError, TokenFromFileError};
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, USER_AGENT};
@@ -321,21 +322,55 @@ pub struct SnowflakeSQLResult<T> {
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {
     type Error;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Error>
+    fn deserialize_from_str(value: &str) -> Result<Self, Self::Error>
     where
         Self: Sized;
 }
 
+impl DeserializeFromStr for chrono::NaiveDate {
+    type Error = chrono::ParseError;
+
+    fn deserialize_from_str(s: &str) -> Result<Self, Self::Error> {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+    }
+}
+
+impl DeserializeFromStr for chrono::NaiveDateTime {
+    type Error = chrono::ParseError;
+
+    fn deserialize_from_str(s: &str) -> Result<Self, Self::Error> {
+        chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
+            .or_else(|_| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S"))
+    }
+}
+
+impl DeserializeFromStr for chrono::DateTime<chrono::Utc> {
+    type Error = chrono::ParseError;
+
+    fn deserialize_from_str(value: &str) -> Result<Self, Self::Error> {
+        // Parse any ISO 8601 / RFC3339 style string and convert to UTC
+        chrono::DateTime::parse_from_rfc3339(value).map(|dt| dt.with_timezone(&chrono::Utc))
+    }
+}
+
+impl DeserializeFromStr for chrono::DateTime<chrono::FixedOffset> {
+    type Error = chrono::ParseError;
+
+    fn deserialize_from_str(value: &str) -> Result<Self, Self::Error> {
+        chrono::DateTime::parse_from_rfc3339(value)
+    }
+}
+
 impl<T: DeserializeFromStr> DeserializeFromStr for Option<T> {
     type Error = <T as DeserializeFromStr>::Error;
-    fn deserialize_from_str(s: &str) -> Result<Self, Self::Error>
+    fn deserialize_from_str(value: &str) -> Result<Self, Self::Error>
     where
         Self: Sized,
     {
-        if s == "NULL" {
+        if value == "NULL" {
             Ok(None)
         } else {
-            <T as DeserializeFromStr>::deserialize_from_str(s).map(|f| Some(f))
+            <T as DeserializeFromStr>::deserialize_from_str(value).map(|f| Some(f))
         }
     }
 }
@@ -343,8 +378,8 @@ macro_rules! impl_deserialize_from_str {
     ($ty: ty) => {
         impl DeserializeFromStr for $ty {
             type Error = <$ty as FromStr>::Err;
-            fn deserialize_from_str(s: &str) -> Result<Self, Self::Error> {
-                <$ty>::from_str(s)
+            fn deserialize_from_str(value: &str) -> Result<Self, Self::Error> {
+                <$ty>::from_str(value)
             }
         }
     };
