@@ -177,19 +177,7 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 }
             }
         }
-        // TODO: figure out why commented out code implements From<#custom_error> for #custom_error
-        /*#(
-            impl ::std::convert::From<<#unique_ty as ::snowflake_connector::DeserializeFromStr>::Error> for #custom_error {
-                fn from(value: <#unique_ty as ::snowflake_connector::DeserializeFromStr>::Error) -> Self {
-                    Self::#unique_name(value)
-                }
-            }
-        )**/
     };
-    /*eprintln!(
-        "Generated code from SnowflakeDeserialize macro:\n{}",
-        generated_code
-    );*/
     generated_code.into()
 }
 
