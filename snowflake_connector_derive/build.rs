@@ -8,12 +8,12 @@ use std::{
 #[tokio::main]
 async fn main() {
     println!("cargo:rerun-if-changed=NULL");
-    if std::env::var("PROFILE").unwrap() == "release" {
+    let Ok(snowflake_path) = std::env::var("SNOWFLAKE_PATH") else {
+        println!(
+            "cargo:warning=Failed to find SNOWFLAKE_PATH environment variable, skipped auto-generating Snowflake tables"
+        );
         return;
-    }
-
-    let snowflake_path = std::env::var("SNOWFLAKE_PATH")
-        .expect("Failed to find SNOWFLAKE_PATH environment variable");
+    };
     let info_path = std::path::Path::new(&snowflake_path).join("snowflake_config.toml");
     let mut config_file = std::fs::OpenOptions::new()
         .read(true)
