@@ -1,8 +1,11 @@
 # Snowflake Connector
+**Who is this crate for?**
+Developers who want to deserialize data into types and auto-generate tables into Rust structs from Snowflake. This crate focuses on type safety and encourages you to handle errors.
+
 Use of [RustRover](https://www.jetbrains.com/rust/) is HIGHLY encouraged when using `derive` feature (enabled by default), otherwise false positive `proc_macro` errors may occur when using VS Code or other code editors, but builds will work fine.
 
 # Usage
-Add following line to Cargo.toml:
+Add following line to `Cargo.toml`:
 
 ```toml
 snowflake-connector = "0.3"
@@ -13,7 +16,7 @@ Right now, only [key pair authentication](https://docs.snowflake.com/en/user-gui
 You can pass the paths to your private and public key using `SnowflakeConnector::try_new_from_file`, or pass them directly using `SnowflakeConnector::try_new`.
 
 ## Dev Setup
-Add your public and private key under a folder, and feed the paths into `SnowflakeConnector`.
+Add your public and private key under a folder, and feed the paths into `SnowflakeConnector::try_new_from_file`.
 
 **Make sure to ignore the keys. You do not want to commit your keys to a repository.**
 
@@ -43,6 +46,15 @@ unsigned = ["menu_id", "menu_type_id", "menu_item_id"]
 # Custom struct below that will be parsed from json
 [databases.tables.json]
 menu_item_health_metrics_obj = "crate::snowflake::metrics::Metrics" # Full path to struct (must implement `serde::Deserialize`)
+# Custom enums for columns below, array contains all the possible values for said column,
+# each array element generates an enum variant
+[databases.tables.enums]
+menu_type = [
+    "Variant_1", # MenuType::Variant1
+    "Variant 2", # MenuType::Variant2
+    "VARIANT 3", # MenuType::Variant3
+    "Variant4",  # MenuType::Variant4
+]
 
 # Second database we want to load tables from
 [[databases]]
@@ -65,7 +77,7 @@ Below example is not tested, but you get the gist:
 ```rust
 use snowflake_connector::*;
 
-fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeSQLSelectError> {
+fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeError> {
     let connector = SnowflakeConnector::try_new_from_file(
         "PUBLIC/KEY/PATH",
         "PRIVATE/KEY/PATH",

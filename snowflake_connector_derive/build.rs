@@ -76,6 +76,7 @@ async fn main() {
         &file.user,
     )
     .unwrap();
+    // (namespace, structs (tables))
     let mut structs = HashMap::<proc_macro2::Ident, Vec<proc_macro2::TokenStream>>::new();
     for database in file.databases {
         for table in database.tables {
@@ -104,6 +105,7 @@ async fn main() {
             let mut types = Vec::with_capacity(row_types.len());
             let mut tables = Vec::new();
             let mut databases = HashMap::new();
+            let mut enums = Vec::new();
             for row_type in row_types {
                 let name = row_type
                     .get("name")
@@ -133,7 +135,13 @@ async fn main() {
                         quote!(f64)
                     }
                     "text" | "variant" => {
-                        if let Some(value) = table.json_rows.get(&name) {
+                        if let Some(value) = table.enums.get(&name) {
+                            let name = proc_macro2::Ident::new(
+                                &name.to_upper_camel_case(),
+                                proc_macro2::Span::call_site(),
+                            );
+                            quote!(#name)
+                        } else if let Some(value) = table.json_rows.get(&name) {
                             attributes.push(quote!(#[snowflake(json)]));
                             if value == "--auto" {
                                 todo!("AUTOMATICALLY FIGURE OUT JSON TYPE");
@@ -189,6 +197,56 @@ async fn main() {
                     attributes.push(proc_macro2::TokenStream::new());
                 }
             }
+            for (enum_name, str_variants) in table.enums {
+                let enum_name = proc_macro2::Ident::new(
+                    &enum_name.to_upper_camel_case(),
+                    proc_macro2::Span::call_site(),
+                );
+                let variants = str_variants
+                    .iter()
+                    .map(|variant| {
+                        proc_macro2::Ident::new(
+                            &variant.to_upper_camel_case(),
+                            proc_macro2::Span::call_site(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let enum_error = proc_macro2::Ident::new(
+                    &format!("{}ParseError", enum_name),
+                    proc_macro2::Span::call_site(),
+                );
+                let enum_name_str =
+                    syn::LitStr::new(&enum_name.to_string(), proc_macro2::Span::call_site());
+                enums.push(quote! {
+                    #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+                    pub enum #enum_name {
+                        #(#variants,)*
+                    }
+                    impl ::snowflake_connector::DeserializeFromStr for #enum_name {
+                        type Error = #enum_error;
+                        fn deserialize_from_str(value: &str) -> Result<Self, Self::Error>
+                            where
+                                Self: Sized {
+                            match value {
+                                #(
+                                    #str_variants => Ok(Self::#variants),
+                                )*
+                                unknown_value => Err(#enum_error { unknown_value: unknown_value.to_string() }),
+                            }
+                        }
+                    }
+                    #[derive(Debug)]
+                    pub struct #enum_error {
+                        pub unknown_value: String,
+                    }
+                    impl ::std::fmt::Display for #enum_error {
+                        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                            write!(f, "error parsing `{}` unknown value: {}", #enum_name_str, self.unknown_value)
+                        }
+                    }
+                    impl ::std::error::Error for #enum_error {}
+                });
+            }
             tables.dedup();
             if tables.is_empty() {
                 panic!("No tables found for query");
@@ -204,6 +262,7 @@ async fn main() {
                             pub #names: #types,
                         )*
                     }
+                    #(#enums)*
                 };
                 match structs.entry(database) {
                     Entry::Occupied(o) => {
@@ -262,13 +321,15 @@ struct Database {
 }
 
 #[derive(serde::Deserialize, Debug)]
-pub struct Table {
+struct Table {
     name: String,
     #[serde(rename = "json")]
     #[serde(default)]
     json_rows: HashMap<String, String>,
     #[serde(default)]
     unsigned: Vec<String>,
+    #[serde(default)]
+    enums: HashMap<String, Vec<String>>,
 }
 
 /*#[derive(serde::Deserialize, Debug)]
