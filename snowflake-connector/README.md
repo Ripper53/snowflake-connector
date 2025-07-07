@@ -98,7 +98,7 @@ fn get_from_snowflake() -> Result<SnowflakeSQLResult<Test>, SnowflakeError> {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum SnowflakeError {
+enum SnowflakeError {
     #[error(transparent)]
     New(#[from] NewSnowflakeConnectorFromFileError),
     #[error(transparent)]
@@ -116,7 +116,7 @@ fn main() {
 // Manually creating tables instead of auto-generating.
 // Fields must be in order of columns!
 #[derive(SnowflakeDeserialize, Debug)]
-pub struct Test {
+struct Test {
     pub id: u32,
     pub value1: bool,
     pub value2: String,
@@ -125,7 +125,7 @@ pub struct Test {
 
 // Enum must implement DeserializeFromStr!
 #[derive(Debug)]
-pub enum SomeEnumValue {
+enum SomeEnumValue {
     Value1,
     Value2,
 }
@@ -155,7 +155,7 @@ struct FineControlTable {
     dog: usize,
 }
 
-pub enum FineControlDeserializeError {
+enum FineControlDeserializeError {
     CatFailedConversion { error: std::num::ParseIntError },
     DogFailedConversion { error: std::num::ParseIntError },
 }

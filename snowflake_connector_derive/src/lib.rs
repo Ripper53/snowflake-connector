@@ -58,16 +58,17 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
-    let (conversion_generation, unique_name, unique_ty, unique_error) = match &ast.data {
+    let (conversion_generation, error_variants, errors) = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(data) => {
                 let count = data.named.len();
                 let mut conversion_generation = Vec::with_capacity(count);
-                let mut unique_name = std::collections::HashMap::with_capacity(count);
+                let mut names = Vec::with_capacity(count);
                 let mut added_uni = 0;
                 for (i, field) in data.named.iter().enumerate() {
                     let name = field.ident.as_ref().unwrap();
-                    let t_str = syn::LitStr::new(&name.to_string(), name.span());
+                    let name_str = name.to_string();
+                    let t_str = syn::LitStr::new(&name_str, name.span());
                     let ty = &field.ty;
                     let (variant_key, t_variant) = if let syn::Type::Path(path) = ty
                         && let Some(seg) = path.path.segments.last()
@@ -91,11 +92,9 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                                 _ => todo!("Path arguments handling"),
                             }
                         };
-                        let name = syn::Ident::new(
-                            &format!("Parse{}", r.to_upper_camel_case()),
-                            seg.ident.span(),
-                        );
-                        (r, name)
+                        let variant_name =
+                            syn::Ident::new(&name_str.to_upper_camel_case(), seg.ident.span());
+                        (r, variant_name)
                     } else {
                         todo!();
                     };
@@ -109,7 +108,6 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                             quote! {
                                 #name: ::snowflake_connector::serde_json::de::from_str::<#ty>(&data[#i]).map_err(|error| {
                                     #custom_error::#t_variant {
-                                        field_name: #t_str,
                                         actual_value: data[#i].clone(),
                                         error,
                                     }
@@ -122,7 +120,6 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                             quote! {
                                 #name: <#ty as ::snowflake_connector::DeserializeFromStr>::deserialize_from_str(&data[#i]).map_err(|error| {
                                     #custom_error::#t_variant {
-                                        field_name: #t_str,
                                         actual_value: data[#i].clone(),
                                         error,
                                     }
@@ -132,13 +129,10 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                         )
                     };
                     conversion_generation.push(conversion_code);
-                    unique_name.insert(variant_key, (t_variant, (ty, error)));
+                    names.push((variant_key, (t_variant, error)));
                 }
-                let (_, (unique_name, (unique_ty, unique_error))): (
-                    Vec<_>,
-                    (Vec<_>, (Vec<_>, Vec<_>)),
-                ) = unique_name.into_iter().unzip();
-                (conversion_generation, unique_name, unique_ty, unique_error)
+                let (_, (names, errors)): (Vec<_>, (Vec<_>, Vec<_>)) = names.into_iter().unzip();
+                (conversion_generation, names, errors)
             }
             _ => panic!("Named fields only!"),
         },
@@ -168,20 +162,15 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
         #[derive(Debug)]
         pub enum #custom_error {
             #(
-                #unique_name {
-                    field_name: &'static str,
+                #error_variants {
                     actual_value: ::std::string::String,
-                    error: #unique_error,
+                    error: #errors,
                 },
             )*
         }
         impl #custom_error {
-            pub const fn field_name(&self) -> &'static str {
-                match self {
-                    #(
-                        Self::#unique_name { field_name, .. } => field_name,
-                    )*
-                }
+            pub fn actual_value(&self) -> &str {
+                &self.actual_value
             }
         }
         // TODO: figure out why commented out code implements From<#custom_error> for #custom_error
