@@ -100,26 +100,18 @@ impl ToString for BindingValue {
             BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
-            BindingValue::DateTime(value) => value.timestamp_nanos().to_string(),
+            BindingValue::DateTime(value) => value.and_utc().timestamp_nanos().to_string(),
             BindingValue::Date(value) => value
                 .and_time(NaiveTime::default())
+                .and_utc()
                 .timestamp_millis()
                 .to_string(),
-            BindingValue::Time(value) => {
-                #[cfg(feature = "decimal")]
-                {
-                    (rust_decimal::Decimal::new(
-                        NaiveDate::default().and_time(*value).timestamp_nanos(),
-                        0,
-                    ) / rust_decimal::prelude::dec!(60))
-                    .to_string()
-                }
-                #[cfg(not(feature = "decimal"))]
-                {
-                    (NaiveDate::default().and_time(*value).timestamp_nanos() as f64 / 60.0)
-                        .to_string()
-                }
-            }
+            BindingValue::Time(value) => (NaiveDate::default()
+                .and_time(*value)
+                .and_utc()
+                .timestamp_nanos() as f64
+                / 60.0)
+                .to_string(),
         }
     }
 }
