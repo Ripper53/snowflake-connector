@@ -170,7 +170,11 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
         }
         impl #custom_error {
             pub fn actual_value(&self) -> &str {
-                &self.actual_value
+                match self {
+                    #(
+                        Self::#error_variants { actual_value, .. } => &actual_value,
+                    )*
+                }
             }
         }
         // TODO: figure out why commented out code implements From<#custom_error> for #custom_error
