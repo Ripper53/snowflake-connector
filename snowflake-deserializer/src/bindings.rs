@@ -100,7 +100,9 @@ impl ToString for BindingValue {
             BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
-            BindingValue::DateTime(value) => value.and_utc().timestamp_nanos().to_string(),
+            BindingValue::DateTime(value) => {
+                value.and_utc().timestamp_nanos_opt().unwrap().to_string()
+            }
             BindingValue::Date(value) => value
                 .and_time(NaiveTime::default())
                 .and_utc()
@@ -109,7 +111,8 @@ impl ToString for BindingValue {
             BindingValue::Time(value) => (NaiveDate::default()
                 .and_time(*value)
                 .and_utc()
-                .timestamp_nanos() as f64
+                .timestamp_nanos_opt()
+                .unwrap() as f64
                 / 60.0)
                 .to_string(),
         }
