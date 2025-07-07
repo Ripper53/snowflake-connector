@@ -1,17 +1,9 @@
 extern crate proc_macro;
 
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    process::id,
-};
-
-use heck::{ToSnakeCase, ToUpperCamelCase};
-use proc_macro::{Span, TokenStream};
+use heck::ToUpperCamelCase;
+use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    self, Data, DeriveInput, Fields, LitStr, MetaList, MetaNameValue, parse::Parse,
-    parse_macro_input,
-};
+use syn::{self, Data, DeriveInput, Fields, MetaList, MetaNameValue, parse_macro_input};
 
 /// Implements `SnowflakeDeserialize` for struct.
 ///
@@ -64,11 +56,9 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 let count = data.named.len();
                 let mut conversion_generation = Vec::with_capacity(count);
                 let mut names = Vec::with_capacity(count);
-                let mut added_uni = 0;
                 for (i, field) in data.named.iter().enumerate() {
                     let name = field.ident.as_ref().unwrap();
                     let name_str = name.to_string();
-                    let t_str = syn::LitStr::new(&name_str, name.span());
                     let ty = &field.ty;
                     let (variant_key, t_variant) = if let syn::Type::Path(path) = ty
                         && let Some(seg) = path.path.segments.last()

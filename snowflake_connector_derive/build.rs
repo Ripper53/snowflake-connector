@@ -2,7 +2,7 @@ use heck::{ToSnakeCase, ToUpperCamelCase};
 use quote::quote;
 use std::{
     collections::{HashMap, hash_map::Entry},
-    io::{BufRead, Read, Seek, Write},
+    io::{Read, Seek, Write},
 };
 
 #[tokio::main]
