@@ -1,5 +1,4 @@
-use chrono::{NaiveDateTime, NaiveDate, NaiveTime};
-use rust_decimal::Decimal;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 
 #[derive(Clone, Debug)]
 pub enum BindingValue {
@@ -19,7 +18,8 @@ pub enum BindingValue {
 
     Float(f32),
     Double(f64),
-    Decimal(Decimal),
+    #[cfg(feature = "decimal")]
+    Decimal(rust_decimal::Decimal),
 
     Char(char),
     String(String),
@@ -50,7 +50,8 @@ impl ToString for BindingType {
             BindingType::DateTime => "TIMESTAMP_NTZ",
             BindingType::Date => "DATE",
             BindingType::Time => "TIME",
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -58,24 +59,20 @@ impl From<BindingValue> for BindingType {
     fn from(value: BindingValue) -> Self {
         match value {
             BindingValue::Bool(_) => BindingType::Bool,
-            BindingValue::Byte(_) |
-            BindingValue::SmallInt(_) |
-            BindingValue::Int(_) |
-            BindingValue::BigInt(_) |
-            BindingValue::ISize(_) |
-            BindingValue::UByte(_) |
-            BindingValue::SmallUInt(_) |
-            BindingValue::UInt(_) |
-            BindingValue::BigUInt(_) |
-            BindingValue::USize(_)
-                => BindingType::Fixed,
-            BindingValue::Float(_) |
-            BindingValue::Double(_) |
-            BindingValue::Decimal(_)
-                => BindingType::Real,
-            BindingValue::Char(_) |
-            BindingValue::String(_)
-                => BindingType::Text,
+            BindingValue::Byte(_)
+            | BindingValue::SmallInt(_)
+            | BindingValue::Int(_)
+            | BindingValue::BigInt(_)
+            | BindingValue::ISize(_)
+            | BindingValue::UByte(_)
+            | BindingValue::SmallUInt(_)
+            | BindingValue::UInt(_)
+            | BindingValue::BigUInt(_)
+            | BindingValue::USize(_) => BindingType::Fixed,
+            BindingValue::Float(_) | BindingValue::Double(_) => BindingType::Real,
+            #[cfg(feature = "decimal")]
+            BindingValue::Decimal(_) => BindingType::Real,
+            BindingValue::Char(_) | BindingValue::String(_) => BindingType::Text,
             BindingValue::DateTime(_) => BindingType::DateTime,
             BindingValue::Date(_) => BindingType::Date,
             BindingValue::Time(_) => BindingType::Time,
@@ -99,12 +96,25 @@ impl ToString for BindingValue {
             BindingValue::USize(value) => value.to_string(),
             BindingValue::Float(value) => value.to_string(),
             BindingValue::Double(value) => value.to_string(),
+            #[cfg(feature = "decimal")]
             BindingValue::Decimal(value) => value.to_string(),
             BindingValue::Char(value) => value.to_string(),
             BindingValue::String(value) => value.to_string(),
-            BindingValue::DateTime(value) => value.timestamp_nanos().to_string(),
-            BindingValue::Date(value) => value.and_time(NaiveTime::default()).timestamp_millis().to_string(),
-            BindingValue::Time(value) => (Decimal::new(NaiveDate::default().and_time(*value).timestamp_nanos(), 0) / rust_decimal_macros::dec!(60)).to_string(),
+            BindingValue::DateTime(value) => {
+                value.and_utc().timestamp_nanos_opt().unwrap().to_string()
+            }
+            BindingValue::Date(value) => value
+                .and_time(NaiveTime::default())
+                .and_utc()
+                .timestamp_millis()
+                .to_string(),
+            BindingValue::Time(value) => (NaiveDate::default()
+                .and_time(*value)
+                .and_utc()
+                .timestamp_nanos_opt()
+                .unwrap() as f64
+                / 60.0)
+                .to_string(),
         }
     }
 }
@@ -117,7 +127,7 @@ impl From<&str> for BindingValue {
 
 macro_rules! impl_from_binding_value {
     ($ty: ty, $ex: expr) => {
-        impl From<$ty> for BindingValue {
+        impl ::std::convert::From<$ty> for BindingValue {
             fn from(value: $ty) -> Self {
                 $ex(value)
             }
@@ -137,7 +147,8 @@ impl_from_binding_value!(u64, BindingValue::BigUInt);
 impl_from_binding_value!(usize, BindingValue::USize);
 impl_from_binding_value!(f32, BindingValue::Float);
 impl_from_binding_value!(f64, BindingValue::Double);
-impl_from_binding_value!(Decimal, BindingValue::Decimal);
+#[cfg(feature = "decimal")]
+impl_from_binding_value!(rust_decimal::Decimal, BindingValue::Decimal);
 impl_from_binding_value!(char, BindingValue::Char);
 impl_from_binding_value!(String, BindingValue::String);
 impl_from_binding_value!(NaiveDateTime, BindingValue::DateTime);
