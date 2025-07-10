@@ -10,6 +10,7 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
+pub mod lazy;
 
 mod jwt;
 
