@@ -1,4 +1,6 @@
 # Snowflake Connector
+[Snowflake](https://www.snowflake.com/) connector written in Rust.
+
 **Who is this crate for?**
 Developers who want to deserialize data into types and auto-generate tables into Rust structs from Snowflake. This crate focuses on type safety and encourages you to handle errors.
 
