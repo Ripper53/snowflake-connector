@@ -68,7 +68,6 @@ impl LazyRows {
     pub fn at(&self, index: usize) -> Option<LazyRow> {
         if let Some(data) = self.rows.data.get(index) {
             let row = LazyRow {
-                metadata: &self.rows.metadata,
                 name_index_map: &self.name_index_map,
                 data,
             };
@@ -81,7 +80,6 @@ impl LazyRows {
 
 #[derive(Debug)]
 pub struct LazyRow<'a> {
-    metadata: &'a MetaData,
     name_index_map: &'a HashMap<String, usize>,
     data: &'a Vec<String>,
 }
