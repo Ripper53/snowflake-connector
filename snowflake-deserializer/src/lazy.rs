@@ -36,9 +36,6 @@ pub struct LazySnowflakeSQLResult {
 }
 
 impl LazySnowflakeSQLResult {
-    pub(crate) fn new(data: String) -> Self {
-        LazySnowflakeSQLResult { data }
-    }
     pub fn parse_rows(self) -> Result<LazyRows, serde_json::Error> {
         let rows: RowsData = serde_json::from_str(&self.data)?;
         let mut name_index_map = HashMap::with_capacity(rows.metadata.row_type.len());
