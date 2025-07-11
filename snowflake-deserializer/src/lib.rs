@@ -10,7 +10,10 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
+#[cfg(feature = "lazy")]
 pub mod lazy;
+#[cfg(feature = "multiple")]
+pub mod multiple;
 
 mod jwt;
 
@@ -209,12 +212,13 @@ impl<'a> SnowflakeSQL<'a> {
         self
     }
     fn get_url(&self) -> String {
-        // TODO: make another return type that allows retrying by calling same statement again with retry flag!
-        format!(
-            "{}statements?nullable=false&requestId={}",
-            self.host, self.uuid
-        )
+        get_url(self.host, &self.uuid)
     }
+}
+
+pub(crate) fn get_url(host: &str, uuid: &uuid::Uuid) -> String {
+    // TODO: make another return type that allows retrying by calling same statement again with retry flag!
+    format!("{host}statements?nullable=false&requestId={uuid}")
 }
 
 #[derive(thiserror::Error, Debug)]
