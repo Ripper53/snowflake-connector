@@ -428,6 +428,40 @@ impl QueryStatus {
     }
 }
 
+/// [QueryFailureStatus](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-queryfailurestatus)
+#[derive(serde::Deserialize, thiserror::Error, Debug)]
+#[serde(rename_all = "camelCase")]
+#[error("Error for statement {statement_handle}: {message}")]
+pub struct QueryFailureStatus {
+    code: String,
+    sql_state: String,
+    message: String,
+    statement_handle: StatementHandle,
+    created_on: Option<i64>,
+    statement_status_url: Option<String>,
+}
+
+impl QueryFailureStatus {
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+    pub fn sql_state(&self) -> &str {
+        &self.sql_state
+    }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+    pub fn statement_handle(&self) -> &StatementHandle {
+        &self.statement_handle
+    }
+    pub fn created_on(&self) -> Option<i64> {
+        self.created_on
+    }
+    pub fn statement_status_url(&self) -> Option<&str> {
+        self.statement_status_url.as_deref()
+    }
+}
+
 /// For custom data parsing,
 /// ex. you want to convert the retrieved data (strings) to enums.
 ///

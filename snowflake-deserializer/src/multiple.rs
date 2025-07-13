@@ -3,8 +3,8 @@ use std::num::NonZeroUsize;
 
 use crate::data_manipulation::DataManipulationResult;
 use crate::{
-    SnowflakeDeserialize, SnowflakeExecutor, SnowflakeSQLResponse, SnowflakeSQLResult,
-    SnowflakeSQLTextError, StatementHandle,
+    QueryFailureStatus, SnowflakeDeserialize, SnowflakeExecutor, SnowflakeSQLResponse,
+    SnowflakeSQLResult, SnowflakeSQLTextError, StatementHandle,
 };
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
@@ -364,40 +364,6 @@ pub enum StatementCompletionError {
     Query(#[from] QueryFailureStatus),
     #[error("unknown error occurred with status code: {0}")]
     Unknown(reqwest::StatusCode),
-}
-
-/// [QueryFailureStatus](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-queryfailurestatus)
-#[derive(serde::Deserialize, thiserror::Error, Debug)]
-#[serde(rename_all = "camelCase")]
-#[error("Error for statement {statement_handle}: {message}")]
-pub struct QueryFailureStatus {
-    code: String,
-    sql_state: String,
-    message: String,
-    statement_handle: StatementHandle,
-    created_on: i64,
-    statement_status_url: String,
-}
-
-impl QueryFailureStatus {
-    pub fn code(&self) -> &str {
-        &self.code
-    }
-    pub fn sql_state(&self) -> &str {
-        &self.sql_state
-    }
-    pub fn message(&self) -> &str {
-        &self.message
-    }
-    pub fn statement_handle(&self) -> &StatementHandle {
-        &self.statement_handle
-    }
-    pub fn created_on(&self) -> i64 {
-        self.created_on
-    }
-    pub fn statement_status_url(&self) -> &str {
-        &self.statement_status_url
-    }
 }
 
 #[cfg(test)]
