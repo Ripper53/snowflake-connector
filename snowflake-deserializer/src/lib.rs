@@ -10,9 +10,9 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
-#[cfg(feature = "lazy")]
+//#[cfg(feature = "lazy")]
 pub mod lazy;
-#[cfg(feature = "multiple")]
+//#[cfg(feature = "multiple")]
 pub mod multiple;
 
 mod jwt;
@@ -159,18 +159,33 @@ impl<'a> SnowflakeSQL<'a> {
     /// Use with `SELECT` queries.
     pub async fn select<T: SnowflakeDeserialize>(
         self,
-    ) -> Result<SnowflakeSQLResult<T>, SnowflakeSQLSelectError<T::Error>> {
-        self.client
+    ) -> Result<StatementResult<'a, T>, SnowflakeSQLSelectError<T::Error>> {
+        let r = self
+            .client
             .post(self.get_url())
             .json(&self.statement)
             .send()
             .await
-            .map_err(SnowflakeSQLSelectError::Request)?
-            .json::<SnowflakeSQLResponse>()
-            .await
-            .map_err(SnowflakeSQLSelectError::Decode)?
-            .deserialize()
-            .map_err(SnowflakeSQLSelectError::Deserialize)
+            .map_err(SnowflakeSQLSelectError::Request)?;
+        let status_code = r.status();
+        match status_code {
+            reqwest::StatusCode::OK => Ok(StatementResult::Result(
+                r.json::<SnowflakeSQLResponse>()
+                    .await
+                    .map_err(SnowflakeSQLSelectError::Decode)?
+                    .deserialize()
+                    .map_err(SnowflakeSQLSelectError::Deserialize)?,
+            )),
+            reqwest::StatusCode::ACCEPTED => Ok(StatementResult::Status(SnowflakeQueryStatus {
+                client: self.client,
+                host: self.host,
+                query_status: r
+                    .json::<QueryStatus>()
+                    .await
+                    .map_err(SnowflakeSQLSelectError::Decode)?,
+            })),
+            status_code => Err(SnowflakeSQLSelectError::Unknown(status_code)),
+        }
     }
     /// Use with `DELETE`, `INSERT`, `UPDATE` queries.
     pub async fn manipulate(self) -> Result<DataManipulationResult, SnowflakeSQLManipulateError> {
@@ -236,6 +251,8 @@ pub enum SnowflakeSQLSelectError<DeserializeError> {
     Decode(reqwest::Error),
     #[error(transparent)]
     Deserialize(#[from] DeserializeError),
+    #[error("unknown error with status code: {0}")]
+    Unknown(reqwest::StatusCode),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -317,8 +334,98 @@ pub struct RowType {
 }
 
 #[derive(Debug)]
+pub enum StatementResult<'a, T> {
+    /// Query still in progress...
+    Status(SnowflakeQueryStatus<'a>),
+    /// Query finished!
+    Result(SnowflakeSQLResult<T>),
+}
+#[derive(Debug)]
 pub struct SnowflakeSQLResult<T> {
     pub data: Vec<T>,
+}
+
+#[derive(Debug)]
+pub struct SnowflakeQueryStatus<'a> {
+    client: &'a reqwest::Client,
+    host: &'a str,
+    query_status: QueryStatus,
+}
+
+impl<'a> SnowflakeQueryStatus<'a> {
+    pub fn take_query_status(self) -> QueryStatus {
+        self.query_status
+    }
+    pub async fn cancel(&self) -> Result<(), QueryCancelError> {
+        let url = format!(
+            "{}statements/{}/cancel",
+            self.host, self.query_status.statement_handle
+        );
+        let response = self.client.post(url).send().await;
+        match response {
+            Ok(r) => match r.status() {
+                reqwest::StatusCode::OK => Ok(()),
+                status => Err(QueryCancelError::Unknown(status)),
+            },
+            Err(e) => Err(QueryCancelError::Request(e)),
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum QueryCancelError {
+    #[error(transparent)]
+    Request(reqwest::Error),
+    #[error("unknown error with status code: {0}")]
+    Unknown(reqwest::StatusCode),
+}
+
+#[derive(serde::Deserialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct StatementHandle(String);
+impl StatementHandle {
+    pub fn handle(&self) -> &str {
+        &self.0
+    }
+}
+impl std::fmt::Display for StatementHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// [QueryStatus](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-querystatus)
+#[derive(serde::Deserialize, thiserror::Error, Debug)]
+#[serde(rename_all = "camelCase")]
+#[error("Error for statement {statement_handle}: {message}")]
+pub struct QueryStatus {
+    code: String,
+    sql_state: String,
+    message: String,
+    statement_handle: StatementHandle,
+    created_on: i64,
+    statement_status_url: String,
+}
+
+impl QueryStatus {
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+    pub fn sql_state(&self) -> &str {
+        &self.sql_state
+    }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+    pub fn statement_handle(&self) -> &StatementHandle {
+        &self.statement_handle
+    }
+    pub fn created_on(&self) -> i64 {
+        self.created_on
+    }
+    pub fn statement_status_url(&self) -> &str {
+        &self.statement_status_url
+    }
 }
 
 /// For custom data parsing,

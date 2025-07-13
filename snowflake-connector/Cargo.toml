@@ -19,3 +19,6 @@ snowflake_connector_derive = { version = "0.2", path = "../snowflake_connector_d
 [features]
 default = ["derive"]
 derive = ["snowflake_connector_derive"]
+multiple = ["snowflake-deserializer/multiple"]
+lazy = ["snowflake-deserializer/lazy"]
+decimal = ["snowflake-deserializer/decimal"]
