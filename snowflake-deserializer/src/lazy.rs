@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{MetaData, QueryFailureStatus, SnowflakeSQL};
+use crate::{MetaData, QueryFailureStatus, QueryStatus, SnowflakeSQL};
 
 impl<'a> SnowflakeSQL<'a> {
     /// Use with `SELECT` queries.
@@ -9,7 +9,7 @@ impl<'a> SnowflakeSQL<'a> {
     /// rather, when a value is needed, the parse occurs there.
     pub async fn lazy_select(
         self,
-    ) -> Result<LazySnowflakeSQLResult, LazySnowflakeSQLSelectRequestError> {
+    ) -> Result<LazySnowflakeSQLResult<'a>, LazySnowflakeSQLSelectRequestError> {
         let response = self
             .client
             .post(self.get_url())
@@ -17,7 +17,11 @@ impl<'a> SnowflakeSQL<'a> {
             .send()
             .await
             .map_err(LazySnowflakeSQLSelectRequestError)?;
-        Ok(LazySnowflakeSQLResult { response })
+        Ok(LazySnowflakeSQLResult {
+            client: self.client,
+            host: self.host,
+            response,
+        })
     }
 }
 
@@ -37,12 +41,14 @@ impl LazySnowflakeSQLSelectRequestError {
 }
 
 #[derive(Debug)]
-pub struct LazySnowflakeSQLResult {
+pub struct LazySnowflakeSQLResult<'a> {
+    client: &'a reqwest::Client,
+    host: &'a str,
     response: reqwest::Response,
 }
 
-impl LazySnowflakeSQLResult {
-    pub async fn parse_rows(self) -> Result<ParseRows, LazyParseRowError> {
+impl<'a> LazySnowflakeSQLResult<'a> {
+    pub async fn parse_rows(self) -> Result<ParseRows<'a>, LazyParseRowError> {
         match self.response.status() {
             reqwest::StatusCode::OK => {
                 let rows: RowsData = self
@@ -59,9 +65,17 @@ impl LazySnowflakeSQLResult {
                     name_index_map,
                 }))
             }
-            reqwest::StatusCode::ACCEPTED => {
-                todo!("IN PROGRESS: fetch from statement handle to check progression");
-                Ok(ParseRows::InProgress)
+            reqwest::StatusCode::REQUEST_TIMEOUT | reqwest::StatusCode::ACCEPTED => {
+                let response: QueryStatus = self
+                    .response
+                    .json()
+                    .await
+                    .map_err(LazyParseRowError::Decode)?;
+                Ok(ParseRows::Status(LazySnowflakeRetrySQLResult {
+                    client: self.client,
+                    host: self.host,
+                    query_status: response,
+                }))
             }
             reqwest::StatusCode::UNPROCESSABLE_ENTITY => {
                 let e = match self.response.json::<QueryFailureStatus>().await {
@@ -86,8 +100,40 @@ pub enum LazyParseRowError {
 }
 
 #[derive(Debug)]
-pub enum ParseRows {
-    InProgress,
+pub struct LazySnowflakeRetrySQLResult<'a> {
+    client: &'a reqwest::Client,
+    host: &'a str,
+    query_status: QueryStatus,
+}
+impl<'a> LazySnowflakeRetrySQLResult<'a> {
+    pub async fn retry(
+        self,
+    ) -> Result<LazySnowflakeSQLResult<'a>, LazySnowflakeSQLRetryRequestError> {
+        let response = self
+            .client
+            .post(format!(
+                "{}statements/{}?nullable=false",
+                self.host, self.query_status.statement_handle,
+            ))
+            .send()
+            .await
+            .map_err(LazySnowflakeSQLRetryRequestError)?;
+        Ok(LazySnowflakeSQLResult {
+            client: self.client,
+            host: self.host,
+            response,
+        })
+    }
+    pub fn status(&self) -> &QueryStatus {
+        &self.query_status
+    }
+}
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub struct LazySnowflakeSQLRetryRequestError(reqwest::Error);
+#[derive(Debug)]
+pub enum ParseRows<'a> {
+    Status(LazySnowflakeRetrySQLResult<'a>),
     Parsed(LazyRows),
 }
 #[derive(Debug)]
@@ -114,6 +160,9 @@ impl LazyRows {
             None
         }
     }
+    pub fn get_index_of_column(&self, column_name: &str) -> Option<usize> {
+        self.name_index_map.get(column_name).map(|index| *index)
+    }
 }
 
 #[derive(Debug)]
@@ -134,12 +183,33 @@ impl<'a> LazyRow<'a> {
             Err(LazyRowParseError::UnknownName(column_name))
         }
     }
+    pub fn get_from_index<'de, T: serde::Deserialize<'de>>(
+        &'de self,
+        column_index: usize,
+    ) -> Result<T, LazyRowIndexParseError> {
+        if let Some(value) = self.data.get(column_index) {
+            Ok(serde_json::from_str(value)?)
+        } else {
+            Err(LazyRowIndexParseError::InvalidIndex(column_index))
+        }
+    }
+    pub fn get_index_of_column(&self, column_name: &str) -> Option<usize> {
+        self.name_index_map.get(column_name).map(|index| *index)
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum LazyRowParseError<'a> {
     #[error("unknown name {0}")]
     UnknownName(&'a str),
+    #[error(transparent)]
+    Deserialize(#[from] serde_json::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum LazyRowIndexParseError {
+    #[error("invalid index {0}")]
+    InvalidIndex(usize),
     #[error(transparent)]
     Deserialize(#[from] serde_json::Error),
 }

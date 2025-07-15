@@ -50,16 +50,36 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
-    let (conversion_generation, error_variants, errors) = match &ast.data {
+    let (conversion_generation, error_variants, errors, lit_str_error_messages) = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(data) => {
                 let count = data.named.len();
                 let mut conversion_generation = Vec::with_capacity(count);
                 let mut names = Vec::with_capacity(count);
+                let mut lit_str_error_messages = Vec::with_capacity(count);
                 for (i, field) in data.named.iter().enumerate() {
                     let name = field.ident.as_ref().unwrap();
                     let name_str = name.to_string();
                     let ty = &field.ty;
+                    let ty_str = quote!(#ty)
+                        .to_string()
+                        .replace(":: ", "::")
+                        .replace(" ::", "::")
+                        .replace(" <", "<")
+                        .replace("< ", "<")
+                        .replace(" >", ">")
+                        .replace("> ", ">");
+                    if let Some(ref name) = field.ident {
+                        lit_str_error_messages.push(syn::LitStr::new(
+                            &format!("failed to deserialize field `{name}`: {ty_str}"),
+                            proc_macro2::Span::call_site(),
+                        ));
+                    } else {
+                        lit_str_error_messages.push(syn::LitStr::new(
+                            &format!("failed to deserialize type: {ty_str}"),
+                            proc_macro2::Span::call_site(),
+                        ));
+                    }
                     let (variant_key, t_variant) = if let syn::Type::Path(path) = ty
                         && let Some(seg) = path.path.segments.last()
                     {
@@ -122,7 +142,7 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                     names.push((variant_key, (t_variant, error)));
                 }
                 let (_, (names, errors)): (Vec<_>, (Vec<_>, Vec<_>)) = names.into_iter().unzip();
-                (conversion_generation, names, errors)
+                (conversion_generation, names, errors, lit_str_error_messages)
             }
             _ => panic!("Named fields only!"),
         },
@@ -167,6 +187,16 @@ fn impl_snowflake_deserialize(ast: &DeriveInput) -> TokenStream {
                 }
             }
         }
+        impl ::std::fmt::Display for #custom_error {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                match self {
+                    #(
+                        Self::#error_variants { actual_value, .. } => ::std::write!(f, #lit_str_error_messages),
+                    )*
+                }
+            }
+        }
+        impl ::std::error::Error for #custom_error {}
     };
     generated_code.into()
 }

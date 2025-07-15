@@ -3,8 +3,9 @@ use std::num::NonZeroUsize;
 
 use crate::data_manipulation::DataManipulationResult;
 use crate::{
-    QueryFailureStatus, SnowflakeDeserialize, SnowflakeExecutor, SnowflakeSQLResponse,
-    SnowflakeSQLResult, SnowflakeSQLTextError, StatementHandle,
+    QueryFailureStatus, QueryStatus, SnowflakeDeserialize, SnowflakeExecutor,
+    SnowflakeExecutorSQLJSON, SnowflakeSQL, SnowflakeSQLResponse, SnowflakeSQLResult,
+    SnowflakeSQLTextError, StatementHandle,
 };
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
@@ -42,20 +43,35 @@ impl<'a, D: ToString> MultipleSnowflakeSQL<'a, D> {
     /// Use [add_multiple_sql](Self::add_multiple_sql) to add multiple SQL statement at once.
     ///
     /// SQL statement **must** end with a semicolon (;)
-    pub fn add_sql(&mut self, sql: &'a str) {
-        self.data.add_sql(sql)
+    pub fn add_sql(mut self, sql: &'a str) -> Self {
+        self.data.add_sql(sql);
+        self
     }
     /// Add **multiple** SQL statements, and you must specify how many there in `count`.
     /// Use [add_sql](Self::add_sql) to add a single SQL statement at a time.
     ///
     /// Each SQL statement **must** end with a semicolon (;)
-    pub fn add_multiple_sql(&mut self, count: NonZeroUsize, sql: &'a str) {
-        self.data.add_multiple_sql(count, sql)
+    pub fn add_multiple_sql(mut self, count: NonZeroUsize, sql: &'a str) -> Self {
+        self.data.add_multiple_sql(count, sql);
+        self
     }
-    pub fn finish(self) -> MultipleSnowflakeExecutorSQLJSON<'a> {
-        MultipleSnowflakeExecutorSQLJSON {
-            client: self.client,
-            data: self.data.finished(),
+    pub fn finish_sql(mut self) -> SnowflakeSQLStatementType<'a> {
+        let count = self.data.statement.len() + self.data.additional_statements_count;
+        if count == 1 {
+            SnowflakeSQLStatementType::Single(SnowflakeSQL::new(
+                self.client,
+                self.data.host,
+                SnowflakeExecutorSQLJSON::new(
+                    self.data.statement.pop().unwrap(),
+                    self.data.database.to_string(),
+                ),
+                self.data.uuid,
+            ))
+        } else {
+            SnowflakeSQLStatementType::Multiple(MultipleSnowflakeExecutorSQLJSON {
+                client: self.client,
+                data: self.data.finished(),
+            })
         }
     }
 }
@@ -80,6 +96,11 @@ impl<'a, D: ToString> MultipleSnowflakeSQLData<'a, D> {
             role: None,
         }
     }
+}
+
+pub enum SnowflakeSQLStatementType<'a> {
+    Single(SnowflakeSQL<'a>),
+    Multiple(MultipleSnowflakeExecutorSQLJSON<'a>),
 }
 
 #[derive(Debug)]
@@ -146,6 +167,18 @@ impl<'a> MultipleSnowflakeExecutorSQLJSON<'a> {
             response,
         })
     }
+    pub fn with_timeout(mut self, timeout: u32) -> Self {
+        self.data.timeout = Some(timeout);
+        self
+    }
+    pub fn with_warehouse<W: ToString>(mut self, warehouse: W) -> Self {
+        self.data.warehouse = Some(warehouse.to_string());
+        self
+    }
+    pub fn with_role<R: ToString>(mut self, role: R) -> Self {
+        self.data.role = Some(role.to_string());
+        self
+    }
     fn get_url(&self) -> String {
         crate::get_url(self.data.host, &self.data.uuid)
     }
@@ -205,7 +238,7 @@ impl<'a> MultipleSnowflakeSQLResponse<'a> {
     }
     /// Check if all statements are complete.
     /// Updates after calling [complete](Self::complete).
-    pub fn all_complete(&self) -> bool {
+    pub fn are_all_complete(&self) -> bool {
         self.response.statement_handles.is_empty()
     }
     pub fn unfinished_statements(&self) -> &[StatementHandle] {
@@ -236,25 +269,29 @@ impl<'a> MultipleSnowflakeSQLResponse<'a> {
                     })),
                     reqwest::StatusCode::UNPROCESSABLE_ENTITY => {
                         let e = match response.json::<QueryFailureStatus>().await {
-                            Ok(e) => StatementCompletionError::Query(e),
-                            Err(e) => StatementCompletionError::Decode(e),
+                            Ok(e) => StatementError::Query(e),
+                            Err(e) => StatementError::Decode(e),
                         };
-                        Err(e.into())
+                        Err(e)
                     }
-                    reqwest::StatusCode::ACCEPTED => Ok(StatementStatus::InProgress),
+                    reqwest::StatusCode::REQUEST_TIMEOUT | reqwest::StatusCode::ACCEPTED => {
+                        let query: QueryStatus =
+                            response.json().await.map_err(StatementError::Decode)?;
+                        Ok(StatementStatus::Status(query))
+                    }
                     reqwest::StatusCode::TOO_MANY_REQUESTS
                     | reqwest::StatusCode::SERVICE_UNAVAILABLE
                     | reqwest::StatusCode::GATEWAY_TIMEOUT => {
                         Err(StatementError::TooManyRequests(status))
                     }
-                    status => Err(StatementCompletionError::Unknown(status).into()),
+                    status => Err(StatementError::Unknown(status)),
                 }
             }
             Err(e) => {
                 if let Some(status) = e.status() {
-                    Err(StatementCompletionError::Unknown(status).into())
+                    Err(StatementError::Unknown(status))
                 } else {
-                    panic!();
+                    Err(StatementError::UnknownResponse(e))
                 }
             }
         }
@@ -266,33 +303,33 @@ impl<'a> MultipleSnowflakeSQLResponse<'a> {
     /// Check when [all_complete](Self::all_complete) is `true`, then there is no need to call this function anymore.
     pub async fn complete(
         &mut self,
-    ) -> impl Iterator<Item = Result<Parse, StatementCompletionError>> {
-        let mut to_remove_index = HashSet::new();
-        let mut statements = Vec::new();
+    ) -> impl Iterator<Item = Result<StatementStatus, StatementError>> {
+        let mut to_remove_index = HashSet::with_capacity(self.response.statement_handles.len());
+        let mut statements = Vec::with_capacity(self.response.statement_handles.len());
         for (i, statement_handle) in self.response.statement_handles.iter().enumerate() {
             match self.statement_status(statement_handle).await {
                 Ok(status) => match status {
+                    StatementStatus::Status(status) => {
+                        statements.push(Ok(StatementStatus::Status(status)));
+                    }
                     StatementStatus::Parse(parse) => {
                         to_remove_index.insert(i);
-                        statements.push(Ok(parse));
+                        statements.push(Ok(StatementStatus::Parse(parse)));
                     }
-                    StatementStatus::InProgress => {}
                 },
                 Err(e) => {
-                    if let StatementError::TooManyRequests(_) = e {
-                        continue;
-                    }
-                    let e = match e {
-                        StatementError::Completion(completion) => completion,
+                    match e {
                         StatementError::TooManyRequests(_) => {
                             // Not a breaking error,
                             // caller simply needs to call
                             // this function again at a later time.
-                            continue;
+                            statements.push(Err(e));
                         }
-                    };
-                    to_remove_index.insert(i);
-                    statements.push(Err(e));
+                        e => {
+                            to_remove_index.insert(i);
+                            statements.push(Err(e));
+                        }
+                    }
                 }
             }
         }
@@ -308,7 +345,7 @@ impl<'a> MultipleSnowflakeSQLResponse<'a> {
 
 #[derive(Debug)]
 pub enum StatementStatus {
-    InProgress,
+    Status(QueryStatus),
     Parse(Parse),
 }
 
@@ -351,19 +388,16 @@ pub enum ParseSelect<T: SnowflakeDeserialize> {
 
 #[derive(thiserror::Error, Debug)]
 pub enum StatementError {
-    #[error(transparent)]
-    Completion(#[from] StatementCompletionError),
     #[error("too many requests with status code: {0}, try again shortly")]
     TooManyRequests(reqwest::StatusCode),
-}
-#[derive(thiserror::Error, Debug)]
-pub enum StatementCompletionError {
     #[error(transparent)]
     Decode(reqwest::Error),
     #[error(transparent)]
     Query(#[from] QueryFailureStatus),
     #[error("unknown error occurred with status code: {0}")]
     Unknown(reqwest::StatusCode),
+    #[error(transparent)]
+    UnknownResponse(reqwest::Error),
 }
 
 #[cfg(test)]

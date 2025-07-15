@@ -120,19 +120,12 @@ pub struct SnowflakeExecutor<'a, D: ToString> {
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
     pub fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
-        SnowflakeSQL {
-            client: self.client,
-            host: self.host,
-            statement: SnowflakeExecutorSQLJSON {
-                statement,
-                timeout: None,
-                database: self.database.to_string(),
-                warehouse: None,
-                role: None,
-                bindings: None,
-            },
-            uuid: uuid::Uuid::new_v4(),
-        }
+        SnowflakeSQL::new(
+            self.client,
+            self.host,
+            SnowflakeExecutorSQLJSON::new(statement, self.database.to_string()),
+            uuid::Uuid::new_v4(),
+        )
     }
 }
 
@@ -145,6 +138,19 @@ pub struct SnowflakeSQL<'a> {
 }
 
 impl<'a> SnowflakeSQL<'a> {
+    pub(crate) fn new(
+        client: &'a reqwest::Client,
+        host: &'a str,
+        statement: SnowflakeExecutorSQLJSON<'a>,
+        uuid: uuid::Uuid,
+    ) -> Self {
+        SnowflakeSQL {
+            client,
+            host,
+            statement,
+            uuid,
+        }
+    }
     pub async fn text(self) -> Result<String, SnowflakeSQLTextError> {
         self.client
             .post(self.get_url())
@@ -176,14 +182,19 @@ impl<'a> SnowflakeSQL<'a> {
                     .deserialize()
                     .map_err(SnowflakeSQLSelectError::Deserialize)?,
             )),
-            reqwest::StatusCode::ACCEPTED => Ok(StatementResult::Status(SnowflakeQueryStatus {
-                client: self.client,
-                host: self.host,
-                query_status: r
-                    .json::<QueryStatus>()
-                    .await
-                    .map_err(SnowflakeSQLSelectError::Decode)?,
-            })),
+            reqwest::StatusCode::REQUEST_TIMEOUT | reqwest::StatusCode::ACCEPTED => {
+                Ok(StatementResult::Status(SnowflakeQueryStatus {
+                    client: self.client,
+                    host: self.host,
+                    query_status: r
+                        .json::<QueryStatus>()
+                        .await
+                        .map_err(SnowflakeSQLSelectError::Decode)?,
+                }))
+            }
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY => Err(SnowflakeSQLSelectError::Query(
+                r.json().await.map_err(SnowflakeSQLSelectError::Decode)?,
+            )),
             status_code => Err(SnowflakeSQLSelectError::Unknown(status_code)),
         }
     }
@@ -250,7 +261,9 @@ pub enum SnowflakeSQLSelectError<DeserializeError> {
     #[error(transparent)]
     Decode(reqwest::Error),
     #[error(transparent)]
-    Deserialize(#[from] DeserializeError),
+    Deserialize(DeserializeError),
+    #[error(transparent)]
+    Query(QueryFailureStatus),
     #[error("unknown error with status code: {0}")]
     Unknown(reqwest::StatusCode),
 }
@@ -271,6 +284,18 @@ pub struct SnowflakeExecutorSQLJSON<'a> {
     warehouse: Option<String>,
     role: Option<String>,
     bindings: Option<HashMap<String, Binding>>,
+}
+impl<'a> SnowflakeExecutorSQLJSON<'a> {
+    pub(crate) fn new(statement: &'a str, database: String) -> Self {
+        SnowflakeExecutorSQLJSON {
+            statement,
+            timeout: None,
+            database,
+            warehouse: None,
+            role: None,
+            bindings: None,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]

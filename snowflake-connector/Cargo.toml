@@ -14,7 +14,7 @@ exclude = ["/environment_variables"]
 
 [dependencies]
 snowflake-deserializer = { version = "0.4", path = "../snowflake-deserializer" }
-snowflake_connector_derive = { version = "0.2", path = "../snowflake_connector_derive", optional = true }
+snowflake_connector_derive = { version = "0.3", path = "../snowflake_connector_derive", optional = true }
 
 [features]
 default = ["derive"]

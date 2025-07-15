@@ -1,6 +1,6 @@
 [package]
 name = "snowflake_connector_derive"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Connect to Snowflake, used with snowflake-deserializer crate"
@@ -30,3 +30,4 @@ proc-macro2 = "1.0"
 syn = "2.0"
 quote = "1.0"
 heck = "0.5"
+prettyplease = "0.2.35"

@@ -10,7 +10,7 @@ Use of [RustRover](https://www.jetbrains.com/rust/) is HIGHLY encouraged when us
 Add following line to `Cargo.toml`:
 
 ```toml
-snowflake-connector = "0.3"
+snowflake-connector = "0.4"
 ```
 
 Right now, only [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) is supported.
