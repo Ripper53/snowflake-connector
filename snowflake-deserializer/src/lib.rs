@@ -10,9 +10,9 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
-//#[cfg(feature = "lazy")]
+#[cfg(feature = "lazy")]
 pub mod lazy;
-//#[cfg(feature = "multiple")]
+#[cfg(feature = "multiple")]
 pub mod multiple;
 
 mod jwt;
