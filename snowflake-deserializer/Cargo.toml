@@ -1,6 +1,6 @@
 [package]
 name = "snowflake-deserializer"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Connect to Snowflake, used with snowflake-connector crate"
@@ -27,4 +27,6 @@ uuid = { version = "1.17.0", features = [
 serde_json = "1.0.140"
 
 [features]
+multiple = []
+lazy = []
 decimal = ["dep:rust_decimal"]

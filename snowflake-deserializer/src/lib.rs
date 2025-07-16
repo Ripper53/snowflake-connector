@@ -10,7 +10,10 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
+#[cfg(feature = "lazy")]
 pub mod lazy;
+#[cfg(feature = "multiple")]
+pub mod multiple;
 
 mod jwt;
 
@@ -92,6 +95,7 @@ impl SnowflakeConnector {
     }
 }
 
+/// Error creating a new [SnowflakeConnector]
 #[derive(thiserror::Error, Debug)]
 pub enum NewSnowflakeConnectorError {
     #[error(transparent)]
@@ -100,6 +104,7 @@ pub enum NewSnowflakeConnectorError {
     ClientBuildError(#[from] reqwest::Error),
 }
 
+/// Error creating a new [SnowflakeConnector] from key paths
 #[derive(thiserror::Error, Debug)]
 pub enum NewSnowflakeConnectorFromFileError {
     #[error(transparent)]
@@ -117,19 +122,12 @@ pub struct SnowflakeExecutor<'a, D: ToString> {
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
     pub fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
-        SnowflakeSQL {
-            client: self.client,
-            host: self.host,
-            statement: SnowflakeExecutorSQLJSON {
-                statement,
-                timeout: None,
-                database: self.database.to_string(),
-                warehouse: None,
-                role: None,
-                bindings: None,
-            },
-            uuid: uuid::Uuid::new_v4(),
-        }
+        SnowflakeSQL::new(
+            self.client,
+            self.host,
+            SnowflakeExecutorSQLJSON::new(statement, self.database.to_string()),
+            uuid::Uuid::new_v4(),
+        )
     }
 }
 
@@ -142,6 +140,19 @@ pub struct SnowflakeSQL<'a> {
 }
 
 impl<'a> SnowflakeSQL<'a> {
+    pub(crate) fn new(
+        client: &'a reqwest::Client,
+        host: &'a str,
+        statement: SnowflakeExecutorSQLJSON<'a>,
+        uuid: uuid::Uuid,
+    ) -> Self {
+        SnowflakeSQL {
+            client,
+            host,
+            statement,
+            uuid,
+        }
+    }
     pub async fn text(self) -> Result<String, SnowflakeSQLTextError> {
         self.client
             .post(self.get_url())
@@ -156,18 +167,38 @@ impl<'a> SnowflakeSQL<'a> {
     /// Use with `SELECT` queries.
     pub async fn select<T: SnowflakeDeserialize>(
         self,
-    ) -> Result<SnowflakeSQLResult<T>, SnowflakeSQLSelectError<T::Error>> {
-        self.client
+    ) -> Result<StatementResult<'a, T>, SnowflakeSQLSelectError<T::Error>> {
+        let r = self
+            .client
             .post(self.get_url())
             .json(&self.statement)
             .send()
             .await
-            .map_err(SnowflakeSQLSelectError::Request)?
-            .json::<SnowflakeSQLResponse>()
-            .await
-            .map_err(SnowflakeSQLSelectError::Decode)?
-            .deserialize()
-            .map_err(SnowflakeSQLSelectError::Deserialize)
+            .map_err(SnowflakeSQLSelectError::Request)?;
+        let status_code = r.status();
+        match status_code {
+            reqwest::StatusCode::OK => Ok(StatementResult::Result(
+                r.json::<SnowflakeSQLResponse>()
+                    .await
+                    .map_err(SnowflakeSQLSelectError::Decode)?
+                    .deserialize()
+                    .map_err(SnowflakeSQLSelectError::Deserialize)?,
+            )),
+            reqwest::StatusCode::REQUEST_TIMEOUT | reqwest::StatusCode::ACCEPTED => {
+                Ok(StatementResult::Status(SnowflakeQueryStatus {
+                    client: self.client,
+                    host: self.host,
+                    query_status: r
+                        .json::<QueryStatus>()
+                        .await
+                        .map_err(SnowflakeSQLSelectError::Decode)?,
+                }))
+            }
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY => Err(SnowflakeSQLSelectError::Query(
+                r.json().await.map_err(SnowflakeSQLSelectError::Decode)?,
+            )),
+            status_code => Err(SnowflakeSQLSelectError::Unknown(status_code)),
+        }
     }
     /// Use with `DELETE`, `INSERT`, `UPDATE` queries.
     pub async fn manipulate(self) -> Result<DataManipulationResult, SnowflakeSQLManipulateError> {
@@ -209,14 +240,16 @@ impl<'a> SnowflakeSQL<'a> {
         self
     }
     fn get_url(&self) -> String {
-        // TODO: make another return type that allows retrying by calling same statement again with retry flag!
-        format!(
-            "{}statements?nullable=false&requestId={}",
-            self.host, self.uuid
-        )
+        get_url(self.host, &self.uuid)
     }
 }
 
+pub(crate) fn get_url(host: &str, uuid: &uuid::Uuid) -> String {
+    // TODO: make another return type that allows retrying by calling same statement again with retry flag!
+    format!("{host}statements?nullable=false&requestId={uuid}")
+}
+
+/// Error retrieving results of SQL statement as text
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum SnowflakeSQLTextError {
@@ -224,6 +257,7 @@ pub enum SnowflakeSQLTextError {
     ToText(reqwest::Error),
 }
 
+/// Error retrieving results of SQL selection
 #[derive(thiserror::Error, Debug)]
 pub enum SnowflakeSQLSelectError<DeserializeError> {
     #[error(transparent)]
@@ -231,9 +265,14 @@ pub enum SnowflakeSQLSelectError<DeserializeError> {
     #[error(transparent)]
     Decode(reqwest::Error),
     #[error(transparent)]
-    Deserialize(#[from] DeserializeError),
+    Deserialize(DeserializeError),
+    #[error(transparent)]
+    Query(QueryFailureStatus),
+    #[error("unknown error with status code: {0}")]
+    Unknown(reqwest::StatusCode),
 }
 
+/// Error retrieving results of SQL manipulation
 #[derive(thiserror::Error, Debug)]
 pub enum SnowflakeSQLManipulateError {
     #[error(transparent)]
@@ -250,6 +289,18 @@ pub struct SnowflakeExecutorSQLJSON<'a> {
     warehouse: Option<String>,
     role: Option<String>,
     bindings: Option<HashMap<String, Binding>>,
+}
+impl<'a> SnowflakeExecutorSQLJSON<'a> {
+    pub(crate) fn new(statement: &'a str, database: String) -> Self {
+        SnowflakeExecutorSQLJSON {
+            statement,
+            timeout: None,
+            database,
+            warehouse: None,
+            role: None,
+            bindings: None,
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -287,6 +338,7 @@ impl SnowflakeSQLResponse {
     }
 }
 
+/// [ResultSetMetaData](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-resultset-resultsetmetadata)
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
@@ -295,6 +347,7 @@ pub struct MetaData {
     pub row_type: Vec<RowType>,
 }
 
+/// [RowType](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-resultset-resultsetmetadata-rowtype)
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RowType {
@@ -312,13 +365,140 @@ pub struct RowType {
     //pub length: ???,
 }
 
+/// Whether the query is running or finished
+#[derive(Debug)]
+pub enum StatementResult<'a, T> {
+    /// Query still in progress...
+    Status(SnowflakeQueryStatus<'a>),
+    /// Query finished!
+    Result(SnowflakeSQLResult<T>),
+}
 #[derive(Debug)]
 pub struct SnowflakeSQLResult<T> {
     pub data: Vec<T>,
 }
 
+#[derive(Debug)]
+pub struct SnowflakeQueryStatus<'a> {
+    client: &'a reqwest::Client,
+    host: &'a str,
+    query_status: QueryStatus,
+}
+
+impl<'a> SnowflakeQueryStatus<'a> {
+    pub fn take_query_status(self) -> QueryStatus {
+        self.query_status
+    }
+    pub async fn cancel(&self) -> Result<(), QueryCancelError> {
+        let url = format!(
+            "{}statements/{}/cancel",
+            self.host, self.query_status.statement_handle
+        );
+        let response = self.client.post(url).send().await;
+        match response {
+            Ok(r) => match r.status() {
+                reqwest::StatusCode::OK => Ok(()),
+                status => Err(QueryCancelError::Unknown(status)),
+            },
+            Err(e) => Err(QueryCancelError::Request(e)),
+        }
+    }
+}
+
+/// Error canceling a query
+#[derive(thiserror::Error, Debug)]
+pub enum QueryCancelError {
+    #[error(transparent)]
+    Request(reqwest::Error),
+    #[error("unknown error with status code: {0}")]
+    Unknown(reqwest::StatusCode),
+}
+
+/// A unique tag that identifies a SQL statement request
+#[derive(serde::Deserialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct StatementHandle(String);
+impl StatementHandle {
+    pub fn handle(&self) -> &str {
+        &self.0
+    }
+}
+impl std::fmt::Display for StatementHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// [QueryStatus](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-querystatus)
+#[derive(serde::Deserialize, thiserror::Error, Debug)]
+#[serde(rename_all = "camelCase")]
+#[error("Error for statement {statement_handle}: {message}")]
+pub struct QueryStatus {
+    code: String,
+    sql_state: String,
+    message: String,
+    statement_handle: StatementHandle,
+    created_on: i64,
+    statement_status_url: String,
+}
+
+impl QueryStatus {
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+    pub fn sql_state(&self) -> &str {
+        &self.sql_state
+    }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+    pub fn statement_handle(&self) -> &StatementHandle {
+        &self.statement_handle
+    }
+    pub fn created_on(&self) -> i64 {
+        self.created_on
+    }
+    pub fn statement_status_url(&self) -> &str {
+        &self.statement_status_url
+    }
+}
+
+/// [QueryFailureStatus](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-queryfailurestatus)
+#[derive(serde::Deserialize, thiserror::Error, Debug)]
+#[serde(rename_all = "camelCase")]
+#[error("Error for statement {statement_handle}: {message}")]
+pub struct QueryFailureStatus {
+    code: String,
+    sql_state: String,
+    message: String,
+    statement_handle: StatementHandle,
+    created_on: Option<i64>,
+    statement_status_url: Option<String>,
+}
+
+impl QueryFailureStatus {
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+    pub fn sql_state(&self) -> &str {
+        &self.sql_state
+    }
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+    pub fn statement_handle(&self) -> &StatementHandle {
+        &self.statement_handle
+    }
+    pub fn created_on(&self) -> Option<i64> {
+        self.created_on
+    }
+    pub fn statement_status_url(&self) -> Option<&str> {
+        self.statement_status_url.as_deref()
+    }
+}
+
 /// For custom data parsing,
-/// ex. you want to convert the retrieved data (strings) to enums.
+/// ex. you want to convert the retrieved data (strings) to enums
 ///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {

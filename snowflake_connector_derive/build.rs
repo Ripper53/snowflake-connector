@@ -299,6 +299,8 @@ async fn main() {
         )*
     }
     .to_string();
+    let generated: syn::File = syn::parse_str(&generated).unwrap();
+    let generated = prettyplease::unparse(&generated);
     file.write_all(generated.as_bytes());
 }
 
