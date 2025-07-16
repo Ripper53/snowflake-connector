@@ -95,6 +95,7 @@ impl SnowflakeConnector {
     }
 }
 
+/// Error creating a new [SnowflakeConnector]
 #[derive(thiserror::Error, Debug)]
 pub enum NewSnowflakeConnectorError {
     #[error(transparent)]
@@ -103,6 +104,7 @@ pub enum NewSnowflakeConnectorError {
     ClientBuildError(#[from] reqwest::Error),
 }
 
+/// Error creating a new [SnowflakeConnector] from key paths
 #[derive(thiserror::Error, Debug)]
 pub enum NewSnowflakeConnectorFromFileError {
     #[error(transparent)]
@@ -247,6 +249,7 @@ pub(crate) fn get_url(host: &str, uuid: &uuid::Uuid) -> String {
     format!("{host}statements?nullable=false&requestId={uuid}")
 }
 
+/// Error retrieving results of SQL statement as text
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
 pub enum SnowflakeSQLTextError {
@@ -254,6 +257,7 @@ pub enum SnowflakeSQLTextError {
     ToText(reqwest::Error),
 }
 
+/// Error retrieving results of SQL selection
 #[derive(thiserror::Error, Debug)]
 pub enum SnowflakeSQLSelectError<DeserializeError> {
     #[error(transparent)]
@@ -268,6 +272,7 @@ pub enum SnowflakeSQLSelectError<DeserializeError> {
     Unknown(reqwest::StatusCode),
 }
 
+/// Error retrieving results of SQL manipulation
 #[derive(thiserror::Error, Debug)]
 pub enum SnowflakeSQLManipulateError {
     #[error(transparent)]
@@ -333,6 +338,7 @@ impl SnowflakeSQLResponse {
     }
 }
 
+/// [ResultSetMetaData](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-resultset-resultsetmetadata)
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
@@ -341,6 +347,7 @@ pub struct MetaData {
     pub row_type: Vec<RowType>,
 }
 
+/// [RowType](https://docs.snowflake.com/en/developer-guide/sql-api/reference#label-sql-api-reference-resultset-resultsetmetadata-rowtype)
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RowType {
@@ -358,6 +365,7 @@ pub struct RowType {
     //pub length: ???,
 }
 
+/// Whether the query is running or finished
 #[derive(Debug)]
 pub enum StatementResult<'a, T> {
     /// Query still in progress...
@@ -397,6 +405,7 @@ impl<'a> SnowflakeQueryStatus<'a> {
     }
 }
 
+/// Error canceling a query
 #[derive(thiserror::Error, Debug)]
 pub enum QueryCancelError {
     #[error(transparent)]
@@ -405,6 +414,7 @@ pub enum QueryCancelError {
     Unknown(reqwest::StatusCode),
 }
 
+/// A unique tag that identifies a SQL statement request
 #[derive(serde::Deserialize, Clone, Debug)]
 #[serde(transparent)]
 pub struct StatementHandle(String);
@@ -488,7 +498,7 @@ impl QueryFailureStatus {
 }
 
 /// For custom data parsing,
-/// ex. you want to convert the retrieved data (strings) to enums.
+/// ex. you want to convert the retrieved data (strings) to enums
 ///
 /// Data in cells are not their type, they are simply strings that need to be converted.
 pub trait DeserializeFromStr {

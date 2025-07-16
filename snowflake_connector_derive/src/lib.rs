@@ -5,12 +5,33 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{self, Data, DeriveInput, Fields, MetaList, MetaNameValue, parse_macro_input};
 
-/// Implements `SnowflakeDeserialize` for struct.
+/// Implements `SnowflakeDeserialize` for struct
 ///
 /// Creates an error enum named: `{name}DeserializeError`,
 /// and generates a variant for each unique type that must implement `DeserializeFromStr`.
 ///
-/// Use the attribute `snowflake_deserialize_error` for a custom error name. Ex. `#[snowflake_deserialize_error(CustomErrorName)]`
+/// Use the attribute `snowflake_deserialize_error_name` for a custom error name. Ex. `#[snowflake_deserialize_error_name(CustomErrorName)]`
+///
+/// Instead of an auto-generated error, you can use the attribute `snowflake_deserialize_error` in conjunction with `snowflake(error = ...)` attribute to use a pre-existing error for the failure of the structs deserialization.
+///
+/// Example using pre-existing error for deserialization failure:
+/// ```
+/// #[derive(SnowflakeDeserialize)]
+/// #[snowflake_deserialize_error(FineControlDeserializeError)] // Specify which error to use
+/// struct FineControlTable {
+///     // Error to return if this field fails to parse,
+///     // note `error` parameter is provided by macro
+///     #[snowflake(error = FineControlDeserializeError::CatFailedConversion { error })]
+///     cat: Option<usize>,
+///     #[snowflake(error = FineControlDeserializeError::DogFailedConversion { error })]
+///     dog: usize,
+/// }
+///
+/// enum FineControlDeserializeError {
+///     CatFailedConversion { error: std::num::ParseIntError },
+///     DogFailedConversion { error: std::num::ParseIntError },
+/// }
+/// ```
 #[proc_macro_derive(
     SnowflakeDeserialize,
     attributes(
