@@ -1,4 +1,6 @@
 # Snowflake Connector
+[![Crates.io](https://img.shields.io/crates/v/snowflake-connector)](https://crates.io/crates/snowflake-connector)
+
 [Snowflake](https://www.snowflake.com/) connector written in Rust.
 
 **Who is this crate for?**
