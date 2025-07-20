@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{MetaData, QueryFailureStatus, QueryStatus, SnowflakeSQL};
 
-impl<'a> SnowflakeSQL<'a> {
+impl<'a, Statement: crate::SnowflakeStatement> SnowflakeSQL<'a, Statement> {
     /// Use with `SELECT` queries.
     ///
     /// Lazy selection, meaning this is not parsed into a struct,
@@ -13,7 +13,7 @@ impl<'a> SnowflakeSQL<'a> {
         let response = self
             .client
             .post(self.get_url())
-            .json(&self.statement)
+            .json(self.statement.statement.statement())
             .send()
             .await
             .map_err(LazySnowflakeSQLSelectRequestError)?;

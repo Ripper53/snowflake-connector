@@ -5,7 +5,7 @@ use crate::data_manipulation::DataManipulationResult;
 use crate::{
     QueryFailureStatus, QueryStatus, SnowflakeDeserialize, SnowflakeExecutor,
     SnowflakeExecutorSQLJSON, SnowflakeSQL, SnowflakeSQLResponse, SnowflakeSQLResult,
-    SnowflakeSQLTextError, StatementHandle,
+    SnowflakeSQLStr, SnowflakeSQLTextError, StatementHandle,
 };
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
@@ -55,14 +55,14 @@ impl<'a, D: ToString> MultipleSnowflakeSQL<'a, D> {
         self.data.add_multiple_sql(count, sql);
         self
     }
-    pub fn finish_sql(mut self) -> SnowflakeSQLStatementType<'a> {
+    pub fn finish_sql(mut self) -> SnowflakeSQLStatementType<'a, SnowflakeSQLStr<'a>> {
         let count = self.data.statement.len() + self.data.additional_statements_count;
         if count == 1 {
             SnowflakeSQLStatementType::Single(SnowflakeSQL::new(
                 self.client,
                 self.data.host,
                 SnowflakeExecutorSQLJSON::new(
-                    self.data.statement.pop().unwrap(),
+                    self.data.statement.pop().unwrap().into(),
                     self.data.database.to_string(),
                 ),
                 self.data.uuid,
@@ -98,8 +98,8 @@ impl<'a, D: ToString> MultipleSnowflakeSQLData<'a, D> {
     }
 }
 
-pub enum SnowflakeSQLStatementType<'a> {
-    Single(SnowflakeSQL<'a>),
+pub enum SnowflakeSQLStatementType<'a, Statement: crate::SnowflakeStatement> {
+    Single(SnowflakeSQL<'a, Statement>),
     Multiple(MultipleSnowflakeExecutorSQLJSON<'a>),
 }
 

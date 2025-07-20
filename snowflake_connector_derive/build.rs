@@ -82,7 +82,7 @@ async fn main() {
         for table in database.tables {
             let table_name = table.name;
             let sql = format!("SELECT * FROM {table_name} LIMIT 0");
-            let mut sql = connector.execute(&database.name).sql(&sql);
+            let mut sql = connector.execute(&database.name).sql_owned(sql);
             if let Some(ref role) = file.role {
                 sql = sql.with_role(role);
             }
@@ -217,6 +217,12 @@ async fn main() {
                 );
                 let enum_name_str =
                     syn::LitStr::new(&enum_name.to_string(), proc_macro2::Span::call_site());
+                let variant_name_str = str_variants
+                    .iter()
+                    .map(|variant| {
+                        syn::LitStr::new(&format!("{variant}"), proc_macro2::Span::call_site())
+                    })
+                    .collect::<Vec<_>>();
                 enums.push(quote! {
                     #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
                     pub enum #enum_name {
@@ -233,6 +239,16 @@ async fn main() {
                                 )*
                                 unknown_value => Err(#enum_error { unknown_value: unknown_value.to_string() }),
                             }
+                        }
+                    }
+                    impl ::std::fmt::Display for #enum_name {
+                        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                            let value = match self {
+                                #(
+                                    Self::#variants => #variant_name_str,
+                                )*
+                            };
+                            write!(f, "{value}")
                         }
                     }
                     #[derive(Debug)]
@@ -253,16 +269,32 @@ async fn main() {
             } else if tables.len() == 1 {
                 let table = tables.pop().unwrap();
                 let database = databases.remove(&table.to_string()).unwrap();
-                let code = quote! {
-                    /// Auto-generated table from `snowflake-connector`
-                    #[derive(::snowflake_connector::SnowflakeDeserialize, Debug)]
-                    pub struct #table {
-                        #(
-                            #attributes
-                            pub #names: #types,
-                        )*
+                let code = if let Ok(value) = std::env::var("CARGO_FEATURE_INSERT")
+                    && value == "1"
+                {
+                    quote! {
+                        /// Auto-generated table from `snowflake-connector`
+                        #[derive(::snowflake_connector::SnowflakeDeserialize, ::snowflake_connector::SnowflakeInsert, Debug)]
+                        pub struct #table {
+                            #(
+                                #attributes
+                                pub #names: #types,
+                            )*
+                        }
+                        #(#enums)*
                     }
-                    #(#enums)*
+                } else {
+                    quote! {
+                        /// Auto-generated table from `snowflake-connector`
+                        #[derive(::snowflake_connector::SnowflakeDeserialize, Debug)]
+                        pub struct #table {
+                            #(
+                                #attributes
+                                pub #names: #types,
+                            )*
+                        }
+                        #(#enums)*
+                    }
                 };
                 match structs.entry(database) {
                     Entry::Occupied(o) => {

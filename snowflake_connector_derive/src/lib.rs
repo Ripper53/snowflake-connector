@@ -334,3 +334,66 @@ fn impl_snowflake_deserialize_custom_error(
     };
     generated_code.into()
 }
+
+#[cfg(feature = "insert")]
+#[proc_macro_derive(SnowflakeInsert)]
+pub fn snowflake_insert_derive(input: TokenStream) -> TokenStream {
+    let ast: DeriveInput = parse_macro_input!(input);
+    impl_snowflake_insert_derive(&ast)
+}
+#[cfg(feature = "insert")]
+fn impl_snowflake_insert_derive(ast: &DeriveInput) -> TokenStream {
+    let name = &ast.ident;
+    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+    let (count, insert_code) = match &ast.data {
+        Data::Struct(e) => match &e.fields {
+            Fields::Named(fields) => {
+                let count = fields.named.len();
+                let mut insert_code = Vec::with_capacity(count);
+                for field in fields.named.iter() {
+                    let name = field.ident.as_ref().unwrap();
+                    if is_optional(&field.ty) {
+                        insert_code.push(quote! {
+                            if let Some(ref value) = self.#name {
+                                Some(value.to_string())
+                            } else {
+                                None
+                            }
+                        });
+                    } else {
+                        insert_code.push(quote!(Some(self.#name.to_string())));
+                    }
+                }
+                (count, insert_code)
+            }
+            Fields::Unnamed(_) => {
+                panic!("This macro can only be derived for named fields, not unnamed")
+            }
+            Fields::Unit => panic!("This macro can only be derived for named fields, not unit"),
+        },
+        Data::Enum(_) => panic!("This macro can only be derived in a struct, not enum."),
+        Data::Union(_) => panic!("This macro can only be derived in a struct, not union."),
+    };
+    quote::quote! {
+        impl #impl_generics ::snowflake_connector::insert::SnowflakeInsert for #name #ty_generics #where_clause {
+            fn insert_values(&self) -> impl ::std::iter::Iterator<Item = ::std::option::Option<impl ::std::string::ToString>> {
+                let mut values = ::std::vec::Vec::with_capacity(#count);
+                #(
+                    values.push(#insert_code);
+                )*
+                values.into_iter()
+            }
+        }
+    }.into()
+}
+
+fn is_optional(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(syn::TypePath { path, .. }) = ty {
+        path.segments.last().map_or(false, |segment| {
+            segment.ident == "Option"
+                && matches!(segment.arguments, syn::PathArguments::AngleBracketed(_))
+        })
+    } else {
+        false
+    }
+}

@@ -10,6 +10,8 @@ use crate::bindings::{BindingType, BindingValue};
 
 pub mod bindings;
 pub mod data_manipulation;
+#[cfg(feature = "insert")]
+pub mod insert;
 #[cfg(feature = "lazy")]
 pub mod lazy;
 #[cfg(feature = "multiple")]
@@ -121,29 +123,82 @@ pub struct SnowflakeExecutor<'a, D: ToString> {
 }
 
 impl<'a, D: ToString> SnowflakeExecutor<'a, D> {
-    pub fn sql(self, statement: &'a str) -> SnowflakeSQL<'a> {
+    /// Generic types:
+    /// - [SnowflakeSQLStr] for reference strings
+    /// - [SnowflakeSQLString] for owned strings
+    ///
+    /// Look into [sql_ref](Self::sql_ref) and [sql_owned](Self::sql_owned)
+    ///
+    /// Example:
+    /// - `sql::<SnowflakeSQLStr>("SELECT * FROM TEST.TABLE")`
+    /// - `sql(SnowflakeSQLStr::from("SELECT * FROM TEST.TABLE"))`
+    pub fn sql<Statement: SnowflakeStatement>(
+        self,
+        statement: impl Into<Statement>,
+    ) -> SnowflakeSQL<'a, Statement> {
         SnowflakeSQL::new(
             self.client,
             self.host,
-            SnowflakeExecutorSQLJSON::new(statement, self.database.to_string()),
+            SnowflakeExecutorSQLJSON::new(statement.into(), self.database.to_string()),
             uuid::Uuid::new_v4(),
         )
+    }
+    pub fn sql_ref(
+        self,
+        statement: impl Into<SnowflakeSQLStr<'a>>,
+    ) -> SnowflakeSQL<'a, SnowflakeSQLStr<'a>> {
+        self.sql(statement)
+    }
+    pub fn sql_owned(
+        self,
+        statement: impl Into<SnowflakeSQLString>,
+    ) -> SnowflakeSQL<'a, SnowflakeSQLString> {
+        self.sql(statement)
+    }
+}
+#[derive(serde::Serialize, Debug)]
+#[serde(transparent)]
+pub struct SnowflakeSQLStr<'a>(&'a str);
+impl<'a> From<&'a str> for SnowflakeSQLStr<'a> {
+    fn from(value: &'a str) -> Self {
+        SnowflakeSQLStr(value)
+    }
+}
+#[derive(serde::Serialize, Debug)]
+#[serde(transparent)]
+pub struct SnowflakeSQLString(String);
+impl<'a> From<String> for SnowflakeSQLString {
+    fn from(value: String) -> Self {
+        SnowflakeSQLString(value)
+    }
+}
+pub trait SnowflakeStatement: serde::Serialize {
+    fn statement(&self) -> &str;
+}
+impl<'a> SnowflakeStatement for SnowflakeSQLStr<'a> {
+    fn statement(&self) -> &str {
+        self.0
+    }
+}
+impl SnowflakeStatement for SnowflakeSQLString {
+    fn statement(&self) -> &str {
+        &self.0
     }
 }
 
 #[derive(Debug)]
-pub struct SnowflakeSQL<'a> {
+pub struct SnowflakeSQL<'a, Statement: SnowflakeStatement> {
     client: &'a reqwest::Client,
     host: &'a str,
-    statement: SnowflakeExecutorSQLJSON<'a>,
+    statement: SnowflakeExecutorSQLJSON<Statement>,
     uuid: uuid::Uuid,
 }
 
-impl<'a> SnowflakeSQL<'a> {
+impl<'a, Statement: SnowflakeStatement> SnowflakeSQL<'a, Statement> {
     pub(crate) fn new(
         client: &'a reqwest::Client,
         host: &'a str,
-        statement: SnowflakeExecutorSQLJSON<'a>,
+        statement: SnowflakeExecutorSQLJSON<Statement>,
         uuid: uuid::Uuid,
     ) -> Self {
         SnowflakeSQL {
@@ -282,16 +337,16 @@ pub enum SnowflakeSQLManipulateError {
 }
 
 #[derive(Serialize, Debug)]
-pub struct SnowflakeExecutorSQLJSON<'a> {
-    statement: &'a str,
+pub struct SnowflakeExecutorSQLJSON<Statement: SnowflakeStatement> {
+    statement: Statement,
     timeout: Option<u32>,
     database: String,
     warehouse: Option<String>,
     role: Option<String>,
     bindings: Option<HashMap<String, Binding>>,
 }
-impl<'a> SnowflakeExecutorSQLJSON<'a> {
-    pub(crate) fn new(statement: &'a str, database: String) -> Self {
+impl<Statement: SnowflakeStatement> SnowflakeExecutorSQLJSON<Statement> {
+    pub(crate) fn new(statement: Statement, database: String) -> Self {
         SnowflakeExecutorSQLJSON {
             statement,
             timeout: None,
